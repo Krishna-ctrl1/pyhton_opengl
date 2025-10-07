@@ -5,7 +5,10 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
+from OpenGL.GLUT import GLUT_BITMAP_HELVETICA_12
 from PIL import Image
+import numpy as np
+import imageio.v3 as iio
 import sys
 import time as pytime
 
@@ -28,14 +31,14 @@ TEX_DIR = "textures"
 # Format: name: (radius, texture, orbit_radius, orbit_speed, self_spin_speed, axial_tilt)
 SOLAR_SYSTEM_DATA = {
     "Sun":     (20.0, "sun.jpg",       0,    0.0,  0.05, 7.25),
-    "Mercury": (1.2,  "mercury.jpg",  40,   4.7,  0.1,  0.03),
-    "Venus":   (2.8,  "venus.jpg",    70,   3.5, -0.05, 177.3),
-    "Earth":   (3.0,  "earth.jpg",   100,   2.9,  1.0,  23.44),
-    "Mars":    (1.8,  "mars.jpg",    150,   2.4,  0.9,  25.19),
-    "Jupiter": (10.0, "jupiter.jpg", 250,   1.3,  2.4,  3.13),
-    "Saturn":  (8.5,  "saturn.jpg",  350,   0.9,  2.2,  26.73),
-    "Uranus":  (6.0,  "uranus.jpg",  450,   0.6, -1.4,  97.77),
-    "Neptune": (5.8,  "neptune.jpg", 550,   0.5,  1.5,  28.32),
+    "Mercury": (1.2,  "mercury.jpg",   40,   4.7,  0.1,  0.03),
+    "Venus":   (2.8,  "venus.jpg",     70,   3.5, -0.05, 177.3),
+    "Earth":   (3.0,  "earth.jpg",     100,  2.9,  1.0,  23.44),
+    "Mars":    (1.8,  "mars.jpg",      150,  2.4,  0.9,  25.19),
+    "Jupiter": (10.0, "jupiter.jpg",   250,  1.3,  2.4,  3.13),
+    "Saturn":  (8.5,  "saturn.jpg",    350,  0.9,  2.2,  26.73),
+    "Uranus":  (6.0,  "uranus.jpg",    450,  0.6, -1.4,  97.77),
+    "Neptune": (5.8,  "neptune.jpg",   550,  0.5,  1.5,  28.32),
 }
 
 PLANET_ORDER = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
@@ -46,52 +49,92 @@ MOON_DATA = {
 
 SATURN_RING_TEXTURE = "saturn_rings.png"
 SUN_GLOW_TEXTURE = "sun_glow.png"
-STARFIELD_TEXTURE = "StarsMap_2500x1250.jpg" # Your star map
+STARFIELD_TEXTURE = "HDR_rich_blue_nebulae_1.hdr" 
 
 # ----------------- HELPERS -----------------
 def resource_path(filename):
     return os.path.join(TEX_DIR, filename)
 
-def load_texture(path, flip_y=True, use_alpha=False):
-    """Load a texture, return GL texture id. Returns 0 on failure."""
+def load_texture(path, flip_y=True, is_hdr=False):
+    """Load a texture, return GL texture id. Supports LDR (8-bit) and HDR (float)."""
     full_path = resource_path(path)
     if not os.path.exists(full_path):
         print(f"[WARN] Texture not found: {full_path}")
         return 0
+    
+    tex_id = 0
     try:
-        img = Image.open(full_path)
-        if flip_y:
-            img = img.transpose(Image.FLIP_TOP_BOTTOM)
-        
-        mode = img.mode
-        if mode == "P": # Palette mode
-            img = img.convert("RGBA")
-            mode = "RGBA"
+        if is_hdr:
+            # FIX: Removed the invalid plugin='imageio' argument.
+            # imageio will now auto-detect the correct plugin for the .hdr file.
+            img_data = iio.imread(full_path, index=0)
+            
+            if img_data.dtype != np.float32:
+                img_data = img_data.astype(np.float32)
 
-        img_data = img.tobytes()
-        width, height = img.size
+            height, width, channels = img_data.shape
+            
+            if channels == 3:
+                gl_format = GL_RGB
+                internal_format = GL_RGB16F
+            elif channels == 4:
+                gl_format = GL_RGBA
+                internal_format = GL_RGBA16F
+            else:
+                print(f"[ERROR] Unsupported channel count for HDR: {channels}")
+                return 0
+            
+            data_type = GL_FLOAT
+            
+            if flip_y:
+                 # Flip the data along the vertical axis (rows)
+                img_data = np.flipud(img_data)
+
+            img_data_bytes = img_data.tobytes()
+
+        else:
+            # LDR loading logic
+            img = Image.open(full_path)
+            if flip_y:
+                img = img.transpose(Image.FLIP_TOP_BOTTOM)
+            
+            mode = img.mode
+            if mode == "P":
+                img = img.convert("RGBA")
+                mode = "RGBA"
+
+            img_data_bytes = img.tobytes()
+            width, height = img.size
+            
+            gl_format = GL_RGB
+            internal_format = GL_RGB8
+            data_type = GL_UNSIGNED_BYTE
+            if mode == "RGBA":
+                gl_format = GL_RGBA
+                internal_format = GL_RGBA8
         
-        gl_format = GL_RGB
-        internal_format = GL_RGB8
-        if mode == "RGBA":
-            gl_format = GL_RGBA
-            internal_format = GL_RGBA8
+        # Common OpenGL Texture Setup
+        tex_id_scalar = glGenTextures(1)
+        tex_id = int(tex_id_scalar) if isinstance(tex_id_scalar, np.generic) else tex_id_scalar
         
-        tex_id = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, tex_id)
+        
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         
-        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, gl_format, GL_UNSIGNED_BYTE, img_data)
+        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, gl_format, data_type, img_data_bytes)
         
         glGenerateMipmap(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, 0)
-        print(f"[INFO] Loaded texture: {path}")
+        print(f"[INFO] Loaded texture: {path} (HDR: {is_hdr})")
         return tex_id
+    
     except Exception as e:
         print(f"[ERROR] Failed to load texture {full_path}: {e}")
+        if tex_id != 0:
+             glDeleteTextures(1, [tex_id]) 
         return 0
 
 def draw_textured_sphere(radius, tex_id, slices=SPHERE_SLICES, stacks=SPHERE_STACKS):
@@ -210,7 +253,7 @@ class SolarSystemApp:
             self.textures[name] = load_texture(data[1])
         self.ring_tex = load_texture(SATURN_RING_TEXTURE)
         self.sun_glow_tex = load_texture(SUN_GLOW_TEXTURE)
-        self.starfield_tex = load_texture(STARFIELD_TEXTURE, flip_y=False)
+        self.starfield_tex = load_texture(STARFIELD_TEXTURE, flip_y=False, is_hdr=True)
 
     def set_projection(self):
         glMatrixMode(GL_PROJECTION)
@@ -301,10 +344,21 @@ class SolarSystemApp:
             self.planet_positions[name] = (x, 0.0, z)
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        
+        # --- Draw Starfield ---
+        # We draw the starfield first, wrapped in a matrix push/pop.
+        # We apply only the camera's rotation so that the background moves
+        # with the mouse, but doesn't zoom or pan, feeling infinitely distant.
+        glPushMatrix()
         glLoadIdentity()
-        
+        glRotatef(self.cam_rot_x, 1, 0, 0)
+        glRotatef(self.cam_rot_y, 0, 1, 0)
         self.draw_starfield()
-        
+        glPopMatrix()
+
+        # --- Draw Main Scene ---
+        # Now, set up the full camera for the solar system objects.
+        glLoadIdentity()
         glTranslatef(0.0, 0.0, self.cam_dist)
         glRotatef(self.cam_rot_x, 1, 0, 0)
         glRotatef(self.cam_rot_y, 0, 1, 0)
