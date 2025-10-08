@@ -436,6 +436,7 @@ class SolarSystemApp:
         draw_label(0, sun_data[0] + 6, 0, "SUN")
         
         # Draw planets
+        # Draw planets
         for name, data in SOLAR_SYSTEM_DATA.items():
             if name == "Sun":
                 continue
@@ -443,16 +444,22 @@ class SolarSystemApp:
             radius, tex, orbit_r, orbit_speed, spin, tilt, color = data
             x, y, z = self.planet_positions[name]
             
+            # --- FIX IS HERE ---
+            # 1. Draw the orbit path FIRST, centered at the sun (0,0,0).
+            draw_orbit_path(orbit_r)
+
+            # 2. NOW, move to the planet's position to draw the planet itself.
             glPushMatrix()
             glTranslatef(x, y, z)
-            draw_orbit_path(orbit_r)
+            
+            # The call to draw_orbit_path() was incorrectly here. It has been moved up.
             
             glRotatef(tilt, 1, 0, 0)
             glRotatef((t * spin * 50.0) % 360.0, 0, 1, 0)
             
             draw_textured_sphere(radius, self.textures.get(name), color)
             
-            # Special effects
+            # Special effects (this part remains the same)
             if name == "Earth":
                 # Subtle atmosphere glow
                 glEnable(GL_BLEND)
