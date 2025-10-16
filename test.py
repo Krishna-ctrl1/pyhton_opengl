@@ -5,6 +5,8 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
+# FIX: Explicitly import glutSolidSphere as it's not always included in the wildcard import
+from OpenGL.GLUT import glutSolidSphere
 from OpenGL.GLUT import GLUT_BITMAP_HELVETICA_18
 from PIL import Image
 import numpy as np
@@ -27,15 +29,15 @@ TEX_DIR = "textures"
 # ============= SCENE DATA =============
 # Format: name: (radius, texture, orbit_radius, orbit_speed, self_spin, axial_tilt, color)
 SOLAR_SYSTEM_DATA = {
-    "Sun":     (25.0,  "sun.jpg",       0,    0.0,  0.02,   7.25,  (1.0, 0.95, 0.7)),
-    "Mercury": (2.0,   "mercury.jpg",   60,   4.7,  0.04,   0.03,  (0.8, 0.8, 0.8)),
-    "Venus":   (4.0,   "venus.jpg",     100,  3.5,  -0.02,  177.3, (1.0, 0.9, 0.5)),
-    "Earth":   (4.2,   "earth.jpg",     150,  2.9,  1.0,    23.44, (0.5, 0.7, 1.0)),
-    "Mars":    (2.5,   "mars.jpg",      220,  2.4,  0.97,   25.19, (1.0, 0.5, 0.3)),
-    "Jupiter": (15.0,  "jupiter.jpg",   350,  1.3,  2.4,    3.13,  (0.95, 0.85, 0.7)),
-    "Saturn":  (12.0,  "saturn.jpg",    520,  0.9,  2.2,    26.73, (1.0, 0.95, 0.8)),
-    "Uranus":  (8.0,   "uranus.jpg",    700,  0.6,  -1.4,   97.77, (0.5, 0.8, 1.0)),
-    "Neptune": (7.5,   "neptune.jpg",   900,  0.5,  1.5,    28.32, (0.2, 0.4, 1.0)),
+    "Sun":     (25.0,  "sun.jpg",       0,     0.0,  0.02,   7.25,  (1.0, 0.95, 0.7)),
+    "Mercury": (2.0,   "mercury.jpg",   60,    4.7,  0.04,   0.03,  (0.8, 0.8, 0.8)),
+    "Venus":   (4.0,   "venus.jpg",     100,   3.5,  -0.02,  177.3, (1.0, 0.9, 0.5)),
+    "Earth":   (4.2,   "earth.jpg",     150,   2.9,  1.0,    23.44, (0.5, 0.7, 1.0)),
+    "Mars":    (2.5,   "mars.jpg",      220,   2.4,  0.97,   25.19, (1.0, 0.5, 0.3)),
+    "Jupiter": (15.0,  "jupiter.jpg",   350,   1.3,  2.4,    3.13,  (0.95, 0.85, 0.7)),
+    "Saturn":  (12.0,  "saturn.jpg",    520,   0.9,  2.2,    26.73, (1.0, 0.95, 0.8)),
+    "Uranus":  (8.0,   "uranus.jpg",    700,   0.6,  -1.4,   97.77, (0.5, 0.8, 1.0)),
+    "Neptune": (7.5,   "neptune.jpg",   900,   0.5,  1.5,    28.32, (0.2, 0.4, 1.0)),
 }
 
 PLANET_ORDER = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
@@ -44,8 +46,7 @@ MOON_DATA = {
     "Moon": (1.2, "moon.jpg", 12.0, 13.0, 0.0)
 }
 
-SATURN_RING_TEXTURE = "saturn_rings.jpg"
-SUN_GLOW_TEXTURE = "sun_glow.jpg"
+SATURN_RING_TEXTURE = "saturn_rings.png" # PNG for transparency
 STARFIELD_TEXTURE = "HDR_rich_blue_nebulae_1.hdr"
 
 # ============= HELPERS =============
@@ -65,17 +66,22 @@ def load_texture(path, flip_y=True, is_hdr=False):
             try:
                 import imageio.v3 as iio
                 img_data = iio.imread(full_path)
-            except:
-                print(f"[WARN] Could not load HDR {path}, trying as standard image")
+            except ImportError:
+                print(f"[WARN] 'imageio' not installed. Cannot load HDR: {path}. Trying PIL.")
+                img = Image.open(full_path)
+                img_data = np.array(img, dtype=np.uint8)
+                is_hdr = False
+            except Exception as e:
+                print(f"[WARN] Could not load HDR {path} with imageio: {e}. Trying PIL.")
                 img = Image.open(full_path)
                 img_data = np.array(img, dtype=np.uint8)
                 is_hdr = False
             
             if is_hdr:
                 if img_data.dtype != np.float32:
-                    img_data = img_data.astype(np.float32)
+                    img_data = img_data.astype(np.float32) / 255.0 # Normalize if not float
                 
-                if len(img_data.shape) == 2:
+                if len(img_data.shape) == 2: # Grayscale
                     img_data = np.stack([img_data, img_data, img_data], axis=-1)
                 
                 height, width = img_data.shape[:2]
@@ -88,22 +94,12 @@ def load_texture(path, flip_y=True, is_hdr=False):
                 if flip_y:
                     img_data = np.flipud(img_data)
                 img_data_bytes = img_data.tobytes()
-            else:
-                img = Image.open(full_path)
-                if img.mode not in ["RGB", "RGBA"]:
-                    img = img.convert("RGB")
-                if flip_y:
-                    img = img.transpose(Image.FLIP_TOP_BOTTOM)
-                
-                width, height = img.size
-                gl_format = GL_RGBA if img.mode == "RGBA" else GL_RGB
-                internal_format = GL_RGBA8 if img.mode == "RGBA" else GL_RGB8
-                data_type = GL_UNSIGNED_BYTE
-                img_data_bytes = img.tobytes()
-        else:
+        
+        # Standard image loading (PIL)
+        if not is_hdr:
             img = Image.open(full_path)
             if img.mode not in ["RGB", "RGBA"]:
-                img = img.convert("RGB")
+                img = img.convert("RGBA") # Convert to RGBA for consistency
             if flip_y:
                 img = img.transpose(Image.FLIP_TOP_BOTTOM)
             
@@ -128,7 +124,7 @@ def load_texture(path, flip_y=True, is_hdr=False):
         return tex_id
     
     except Exception as e:
-        print(f"[ERROR] {full_path}: {e}")
+        print(f"[ERROR] Loading {full_path}: {e}")
         if tex_id != 0:
             glDeleteTextures(1, [tex_id])
         return 0
@@ -178,24 +174,6 @@ def draw_label(x, y, z, text, scale=1.0):
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_LIGHTING)
 
-def draw_glow_sphere(radius, scale=1.5, color=(1.0, 1.0, 1.0), intensity=1.0):
-    """Draw a glowing sphere around a planet"""
-    glEnable(GL_BLEND)
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE)
-    glDisable(GL_LIGHTING)
-    glDisable(GL_DEPTH_TEST)
-    
-    quad = gluNewQuadric()
-    gluQuadricNormals(quad, GLU_SMOOTH)
-    r, g, b = color
-    glColor4f(r, g, b, 0.8 * intensity)
-    gluSphere(quad, radius * scale, 64, 64)
-    gluDeleteQuadric(quad)
-    
-    glEnable(GL_DEPTH_TEST)
-    glEnable(GL_LIGHTING)
-    glDisable(GL_BLEND)
-
 def generate_starfield_texture(width=2048, height=1024):
     """Generate procedural starfield"""
     np.random.seed(123)
@@ -225,12 +203,83 @@ def generate_starfield_texture(width=2048, height=1024):
     
     return texture
 
+def generate_glow_texture(size=256):
+    """Generates a procedural radial glow texture (RGBA)."""
+    texture = np.zeros((size, size, 4), dtype=np.uint8)
+    center_x, center_y = size // 2, size // 2
+    max_dist = math.sqrt(center_x**2 + center_y**2)
+
+    for y in range(size):
+        for x in range(size):
+            dist = math.sqrt((x - center_x)**2 + (y - center_y)**2)
+            # Use a non-linear falloff for a softer edge (e.g., power of 2.5)
+            falloff = max(0, (1.0 - (dist / max_dist))) ** 2.5
+            alpha = int(255 * falloff)
+            
+            if alpha > 0:
+                texture[y, x] = [255, 255, 255, alpha]
+    return texture
+
+def draw_billboard(cx, cy, cz, scale, tex_id, color=(1.0, 1.0, 1.0)):
+    """Draw a texture on a quad that always faces the camera."""
+    # Get the current modelview matrix to extract camera vectors
+    modelview = glGetDoublev(GL_MODELVIEW_MATRIX)
+
+    # The camera's 'right' and 'up' vectors are columns in the matrix
+    cam_right = [modelview[0][0], modelview[1][0], modelview[2][0]]
+    cam_up = [modelview[0][1], modelview[1][1], modelview[2][1]]
+
+    # Set up OpenGL state for a transparent, additive glow
+    glEnable(GL_TEXTURE_2D)
+    glBindTexture(GL_TEXTURE_2D, tex_id)
+    glEnable(GL_BLEND)
+    # Additive blending makes colors brighter, perfect for glows
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE)
+    # Disable writing to the depth buffer to avoid transparency artifacts
+    glDepthMask(GL_FALSE)
+
+    r, g, b = color
+    glColor4f(r, g, b, 1.0) # Use full color, let texture alpha control blend
+
+    glBegin(GL_QUADS)
+    # Bottom-left vertex
+    v1_x = cx + (-cam_right[0] - cam_up[0]) * scale
+    v1_y = cy + (-cam_right[1] - cam_up[1]) * scale
+    v1_z = cz + (-cam_right[2] - cam_up[2]) * scale
+    glTexCoord2f(0, 0); glVertex3f(v1_x, v1_y, v1_z)
+    
+    # Bottom-right vertex
+    v2_x = cx + (cam_right[0] - cam_up[0]) * scale
+    v2_y = cy + (cam_right[1] - cam_up[1]) * scale
+    v2_z = cz + (cam_right[2] - cam_up[2]) * scale
+    glTexCoord2f(1, 0); glVertex3f(v2_x, v2_y, v2_z)
+
+    # Top-right vertex
+    v3_x = cx + (cam_right[0] + cam_up[0]) * scale
+    v3_y = cy + (cam_right[1] + cam_up[1]) * scale
+    v3_z = cz + (cam_right[2] + cam_up[2]) * scale
+    glTexCoord2f(1, 1); glVertex3f(v3_x, v3_y, v3_z)
+
+    # Top-left vertex
+    v4_x = cx + (-cam_right[0] + cam_up[0]) * scale
+    v4_y = cy + (-cam_right[1] + cam_up[1]) * scale
+    v4_z = cz + (-cam_right[2] + cam_up[2]) * scale
+    glTexCoord2f(0, 1); glVertex3f(v4_x, v4_y, v4_z)
+    glEnd()
+
+    # Reset GL state to how it was
+    glDepthMask(GL_TRUE)
+    glDisable(GL_BLEND)
+    glBindTexture(GL_TEXTURE_2D, 0)
+    glDisable(GL_TEXTURE_2D)
+
 # ============= MAIN APP =============
 class SolarSystemApp:
     def __init__(self, width, height):
         pygame.init()
-        glutInit()
+        # FIX: Create the display and OpenGL context BEFORE initializing GLUT
         self.screen = pygame.display.set_mode((width, height), DOUBLEBUF | OPENGL)
+        glutInit()
         pygame.display.set_caption("Cinematic Solar System - Use Mouse to Rotate | 1-9: Planet Focus | 0: Free View")
         
         self.width, self.height = width, height
@@ -257,12 +306,14 @@ class SolarSystemApp:
         for name, data in MOON_DATA.items():
             self.textures[name] = load_texture(data[1])
         self.ring_tex = load_texture(SATURN_RING_TEXTURE)
-        self.sun_glow_tex = load_texture(SUN_GLOW_TEXTURE)
         
         self.starfield_tex = load_texture(STARFIELD_TEXTURE, flip_y=False, is_hdr=True)
         if self.starfield_tex == 0:
             print("[INFO] Generating procedural starfield...")
             self.starfield_tex = self.create_procedural_starfield()
+
+        print("[INFO] Generating procedural glow texture...")
+        self.sun_glow_tex = self.create_procedural_glow_texture()
         print("=== Ready ===\n")
 
     def create_procedural_starfield(self):
@@ -276,6 +327,20 @@ class SolarSystemApp:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 2048, 1024, 0, GL_RGB, GL_UNSIGNED_BYTE, texture_data.tobytes())
         glGenerateMipmap(GL_TEXTURE_2D)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        return tex_id
+
+    def create_procedural_glow_texture(self):
+        """Create procedural glow texture and upload to GPU."""
+        texture_data = generate_glow_texture(256)
+        tex_id = int(glGenTextures(1))
+        glBindTexture(GL_TEXTURE_2D, tex_id)
+        # Use GL_CLAMP_TO_EDGE to avoid artifacts at the billboard's border
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data.tobytes())
         glBindTexture(GL_TEXTURE_2D, 0)
         return tex_id
 
@@ -298,6 +363,7 @@ class SolarSystemApp:
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
         
+        # Light properties
         glLightfv(GL_LIGHT0, GL_POSITION, [0.0, 0.0, 0.0, 1.0])
         glLightfv(GL_LIGHT0, GL_DIFFUSE, [1.0, 1.0, 1.0, 1.0])
         glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
@@ -308,8 +374,9 @@ class SolarSystemApp:
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
         
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
-        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32)
+        # Material properties for specular highlights on planets
+        glMaterialfv(GL_FRONT, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
+        glMaterialf(GL_FRONT, GL_SHININESS, 32)
 
     def handle_events(self):
         """Handle input"""
@@ -338,9 +405,9 @@ class SolarSystemApp:
                 if ev.button == 1:
                     self.dragging = True
                     self.last_mouse = ev.pos
-                elif ev.button == 4:
+                elif ev.button == 4: # Scroll up
                     self.cam_dist += WHEEL_ZOOM_STEP
-                elif ev.button == 5:
+                elif ev.button == 5: # Scroll down
                     self.cam_dist -= WHEEL_ZOOM_STEP
             
             if ev.type == MOUSEBUTTONUP and ev.button == 1:
@@ -355,10 +422,15 @@ class SolarSystemApp:
 
     def update_camera(self, dt):
         """Update camera"""
+        # Apply velocity from dragging
         self.cam_rot_y += self.vel_y * dt * 60
         self.cam_rot_x += self.vel_x * dt * 60
+        
+        # Dampen the velocity for inertia
         self.vel_x *= DRAG_DAMPING
         self.vel_y *= DRAG_DAMPING
+
+        # Clamp vertical rotation
         self.cam_rot_x = max(-89.0, min(89.0, self.cam_rot_x))
 
     def draw_starfield(self):
@@ -367,8 +439,10 @@ class SolarSystemApp:
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
         glColor3f(1.0, 1.0, 1.0)
+        # We look from the inside out, so we render the front face of the sphere
         glCullFace(GL_FRONT)
         draw_textured_sphere(30000, self.starfield_tex, slices=64, stacks=32)
+        # Reset to backface culling for all other objects
         glCullFace(GL_BACK)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_LIGHTING)
@@ -376,6 +450,7 @@ class SolarSystemApp:
 
     def render_scene(self, t):
         """Render everything"""
+        # Calculate all planet positions first
         self.planet_positions.clear()
         for name, data in SOLAR_SYSTEM_DATA.items():
             if name == "Sun":
@@ -389,6 +464,7 @@ class SolarSystemApp:
         
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         
+        # Draw Starfield first from a fixed camera
         glPushMatrix()
         glLoadIdentity()
         glRotatef(self.cam_rot_x, 1, 0, 0)
@@ -396,31 +472,45 @@ class SolarSystemApp:
         self.draw_starfield()
         glPopMatrix()
         
-        # Setup main camera with enhanced lighting
+        # Setup main camera for the solar system
         glLoadIdentity()
         glTranslatef(0.0, 0.0, self.cam_dist)
         glRotatef(self.cam_rot_x, 1, 0, 0)
         glRotatef(self.cam_rot_y, 0, 1, 0)
         
+        # The main light source is at the center
         glLightfv(GL_LIGHT0, GL_POSITION, [0.0, 0.0, 0.0, 1.0])
         
+        # If tracking a planet, move the camera
         if self.camera_target and self.camera_target in self.planet_positions:
             px, py, pz = self.planet_positions[self.camera_target]
             glTranslatef(-px, -py, -pz)
         
+        # --- Draw Sun and its Bloom ---
         glPushMatrix()
         sun_data = SOLAR_SYSTEM_DATA["Sun"]
         radius, tex, _, _, spin, tilt, color = sun_data
         glRotatef(tilt, 1, 0, 0)
         glRotatef((t * spin * 50.0) % 360.0, 0, 1, 0)
         
-        # glEnable(GL_LIGHTING)
-        glColor3f(1.0, 1.0, 1.0)
-        draw_textured_sphere(radius, self.textures.get("Sun"), (1.0, 1.0, 1.0))
+        # 1. Disable lighting for the sun and its glow.
+        glDisable(GL_LIGHTING)
         
+        # 2. Draw the Sun Sphere with a bright, warm orange color.
+        draw_textured_sphere(radius, self.textures.get("Sun"), color=(2.0, 1.6, 1.2))
+        
+        # 3. Draw the bloom with a fiery orange color.
+        if self.sun_glow_tex > 0:
+            draw_billboard(0, 0, 0, radius * 5.0, self.sun_glow_tex, color=(1.6, 0.8, 0.2))
+
+        # 4. Re-enable lighting for the planets and reset color.
+        glEnable(GL_LIGHTING)
+        glColor3f(1.0, 1.0, 1.0)
+
         glPopMatrix()
         draw_label(0, sun_data[0] + 6, 0, "SUN")
         
+        # --- Draw Planets ---
         for name, data in SOLAR_SYSTEM_DATA.items():
             if name == "Sun":
                 continue
@@ -429,6 +519,7 @@ class SolarSystemApp:
             x, y, z = self.planet_positions[name]
             
             draw_orbit_path(orbit_r)
+            
             glPushMatrix()
             glTranslatef(x, y, z)
             glRotatef(tilt, 1, 0, 0)
@@ -437,14 +528,6 @@ class SolarSystemApp:
             draw_textured_sphere(radius, self.textures.get(name), color)
             
             if name == "Earth":
-                glEnable(GL_BLEND)
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-                glDisable(GL_LIGHTING)
-                glColor4f(0.3, 0.5, 0.9, 0.15)
-                draw_glow_sphere(radius, 1.05, (0.3, 0.5, 0.9), 0.3)
-                glEnable(GL_LIGHTING)
-                glDisable(GL_BLEND)
-                
                 # Moon
                 m_data = MOON_DATA["Moon"]
                 m_rad, m_tex, m_dist, m_speed, m_spin = m_data
@@ -465,12 +548,12 @@ class SolarSystemApp:
                     glBindTexture(GL_TEXTURE_2D, self.ring_tex)
                     glEnable(GL_BLEND)
                     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-                    glDisable(GL_LIGHTING)
-                    glColor4f(1.0, 1.0, 1.0, 0.7)
+                    glDisable(GL_LIGHTING) # Rings are flat and don't need lighting
+                    glColor4f(1.0, 1.0, 1.0, 0.8)
                     
                     inner = radius + 3
                     outer = radius + 14
-                    segments = 200
+                    segments = 128
                     
                     glBegin(GL_TRIANGLE_STRIP)
                     for i in range(segments + 1):
@@ -489,7 +572,7 @@ class SolarSystemApp:
             
             glPopMatrix()
             draw_label(x, y + radius + 3, z, name.upper())
-        
+    
     def run(self):
         """Main loop"""
         clock = pygame.time.Clock()
@@ -503,7 +586,7 @@ class SolarSystemApp:
             self.handle_events()
             self.update_camera(dt)
             
-            t = pygame.time.get_ticks() / 8000.0  # Slower animation
+            t = pygame.time.get_ticks() / 12000.0 # Slow down animation
             self.render_scene(t)
             
             pygame.display.flip()
@@ -511,7 +594,8 @@ class SolarSystemApp:
 
 if __name__ == "__main__":
     if not os.path.isdir(TEX_DIR):
-        print(f"ERROR: Create folder '{TEX_DIR}' and add texture files")
+        print(f"ERROR: Create a folder named '{TEX_DIR}' in the same directory as this script and add the required texture files inside it.")
     else:
         app = SolarSystemApp(WINDOW_WIDTH, WINDOW_HEIGHT)
         app.run()
+
