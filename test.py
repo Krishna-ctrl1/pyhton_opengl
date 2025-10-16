@@ -62,7 +62,6 @@ def load_texture(path, flip_y=True, is_hdr=False):
     tex_id = 0
     try:
         if is_hdr:
-            # Try loading HDR with imageio
             try:
                 import imageio.v3 as iio
                 img_data = iio.imread(full_path)
@@ -102,7 +101,6 @@ def load_texture(path, flip_y=True, is_hdr=False):
                 data_type = GL_UNSIGNED_BYTE
                 img_data_bytes = img.tobytes()
         else:
-            # Standard LDR loading
             img = Image.open(full_path)
             if img.mode not in ["RGB", "RGBA"]:
                 img = img.convert("RGB")
@@ -115,7 +113,6 @@ def load_texture(path, flip_y=True, is_hdr=False):
             data_type = GL_UNSIGNED_BYTE
             img_data_bytes = img.tobytes()
         
-        # Upload to GPU
         tex_id = int(glGenTextures(1))
         glBindTexture(GL_TEXTURE_2D, tex_id)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
@@ -204,7 +201,6 @@ def generate_starfield_texture(width=2048, height=1024):
     np.random.seed(123)
     texture = np.zeros((height, width, 3), dtype=np.uint8)
     
-    # Add bright stars
     for _ in range(8000):
         x = np.random.randint(0, width)
         y = np.random.randint(0, height)
@@ -212,7 +208,6 @@ def generate_starfield_texture(width=2048, height=1024):
         size = np.random.randint(1, 3)
         texture[max(0, y-size):min(height, y+size), max(0, x-size):min(width, x+size)] = [brightness, brightness, brightness]
     
-    # Add nebula clouds
     for _ in range(500):
         cx = np.random.randint(0, width)
         cy = np.random.randint(0, height)
@@ -264,7 +259,6 @@ class SolarSystemApp:
         self.ring_tex = load_texture(SATURN_RING_TEXTURE)
         self.sun_glow_tex = load_texture(SUN_GLOW_TEXTURE)
         
-        # Load starfield (HDR or fallback to procedural)
         self.starfield_tex = load_texture(STARFIELD_TEXTURE, flip_y=False, is_hdr=True)
         if self.starfield_tex == 0:
             print("[INFO] Generating procedural starfield...")
@@ -304,7 +298,6 @@ class SolarSystemApp:
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
         
-        # Enhanced lighting for better clarity
         glLightfv(GL_LIGHT0, GL_POSITION, [0.0, 0.0, 0.0, 1.0])
         glLightfv(GL_LIGHT0, GL_DIFFUSE, [1.0, 1.0, 1.0, 1.0])
         glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
@@ -315,7 +308,6 @@ class SolarSystemApp:
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
         
-        # Enable material properties for better texture clarity
         glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
         glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 32)
 
@@ -384,7 +376,6 @@ class SolarSystemApp:
 
     def render_scene(self, t):
         """Render everything"""
-        # Update planet positions
         self.planet_positions.clear()
         for name, data in SOLAR_SYSTEM_DATA.items():
             if name == "Sun":
@@ -398,7 +389,6 @@ class SolarSystemApp:
         
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         
-        # Draw starfield (independent of camera zoom)
         glPushMatrix()
         glLoadIdentity()
         glRotatef(self.cam_rot_x, 1, 0, 0)
@@ -412,31 +402,25 @@ class SolarSystemApp:
         glRotatef(self.cam_rot_x, 1, 0, 0)
         glRotatef(self.cam_rot_y, 0, 1, 0)
         
-        # Update sun light position
         glLightfv(GL_LIGHT0, GL_POSITION, [0.0, 0.0, 0.0, 1.0])
         
-        # Follow target if selected
         if self.camera_target and self.camera_target in self.planet_positions:
             px, py, pz = self.planet_positions[self.camera_target]
             glTranslatef(-px, -py, -pz)
         
-        # Draw Sun
         glPushMatrix()
         sun_data = SOLAR_SYSTEM_DATA["Sun"]
         radius, tex, _, _, spin, tilt, color = sun_data
         glRotatef(tilt, 1, 0, 0)
         glRotatef((t * spin * 50.0) % 360.0, 0, 1, 0)
         
-        # Enhanced lighting for sun clarity
-        glEnable(GL_LIGHTING)
+        # glEnable(GL_LIGHTING)
         glColor3f(1.0, 1.0, 1.0)
         draw_textured_sphere(radius, self.textures.get("Sun"), (1.0, 1.0, 1.0))
         
         glPopMatrix()
         draw_label(0, sun_data[0] + 6, 0, "SUN")
         
-        # Draw planets
-        # Draw planets
         for name, data in SOLAR_SYSTEM_DATA.items():
             if name == "Sun":
                 continue
@@ -444,24 +428,15 @@ class SolarSystemApp:
             radius, tex, orbit_r, orbit_speed, spin, tilt, color = data
             x, y, z = self.planet_positions[name]
             
-            # --- FIX IS HERE ---
-            # 1. Draw the orbit path FIRST, centered at the sun (0,0,0).
             draw_orbit_path(orbit_r)
-
-            # 2. NOW, move to the planet's position to draw the planet itself.
             glPushMatrix()
             glTranslatef(x, y, z)
-            
-            # The call to draw_orbit_path() was incorrectly here. It has been moved up.
-            
             glRotatef(tilt, 1, 0, 0)
             glRotatef((t * spin * 50.0) % 360.0, 0, 1, 0)
             
             draw_textured_sphere(radius, self.textures.get(name), color)
             
-            # Special effects (this part remains the same)
             if name == "Earth":
-                # Subtle atmosphere glow
                 glEnable(GL_BLEND)
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
                 glDisable(GL_LIGHTING)
