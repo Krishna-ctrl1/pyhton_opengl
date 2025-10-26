@@ -5,7 +5,6 @@ from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
-# FIX: Explicitly import glutSolidSphere as it's not always included in the wildcard import
 from OpenGL.GLUT import glutSolidSphere
 from OpenGL.GLUT import GLUT_BITMAP_HELVETICA_18
 from PIL import Image
