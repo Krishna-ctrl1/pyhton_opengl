@@ -24,23 +24,30 @@ DRAG_DAMPING = 0.92
 WHEEL_ZOOM_STEP = 80.0
 
 TEX_DIR = "textures"
+MUSIC_DIR = "music"
 
 # --- Animation Config ---
 BIG_BANG_DURATION = 4.0  # seconds
 TRANSITION_DURATION = 5.0 # seconds
 
+# --- Music Config ---
+# (Make sure you have these files in your 'music' folder!)
+BIG_BANG_MUSIC = "big_bang.ogg"     # A dramatic, explosive track
+TRANSITION_MUSIC = "creation.ogg"   # A soothing, building track
+SOLAR_SYSTEM_MUSIC = "ambient.ogg"  # A calm, looping space track
+
 # ============= SCENE DATA =============
 # Format: name: (radius, texture, orbit_radius, orbit_speed, self_spin, axial_tilt, color)
 SOLAR_SYSTEM_DATA = {
-    "Sun":     (25.0,  "sun.jpg",       0,     0.0,  0.02,   7.25,  (1.0, 0.95, 0.7)),
-    "Mercury": (2.0,   "mercury.jpg",   60,    4.7,  0.04,   0.03,  (0.8, 0.8, 0.8)),
-    "Venus":   (4.0,   "venus.jpg",     100,   3.5,  -0.02,  177.3, (1.0, 0.9, 0.5)),
-    "Earth":   (4.2,   "earth.jpg",     150,   2.9,  1.0,    23.44, (0.5, 0.7, 1.0)),
-    "Mars":    (2.5,   "mars.jpg",      220,   2.4,  0.97,   25.19, (1.0, 0.5, 0.3)),
-    "Jupiter": (15.0,  "jupiter.jpg",   350,   1.3,  2.4,    3.13,  (0.95, 0.85, 0.7)),
-    "Saturn":  (12.0,  "saturn.jpg",    520,   0.9,  2.2,    26.73, (1.0, 0.95, 0.8)),
-    "Uranus":  (8.0,   "uranus.jpg",    700,   0.6,  -1.4,   97.77, (0.5, 0.8, 1.0)),
-    "Neptune": (7.5,   "neptune.jpg",   900,   0.5,  1.5,    28.32, (0.2, 0.4, 1.0)),
+    "Sun":     (25.0,   "sun.jpg",       0,     0.0,   0.02,   7.25,   (1.0, 0.95, 0.7)),
+    "Mercury": (2.0,    "mercury.jpg",   60,    4.7,   0.04,   0.03,   (0.8, 0.8, 0.8)),
+    "Venus":   (4.0,    "venus.jpg",     100,   3.5,   -0.02,  177.3,  (1.0, 0.9, 0.5)),
+    "Earth":   (4.2,    "earth.jpg",     150,   2.9,   1.0,    23.44,  (0.5, 0.7, 1.0)),
+    "Mars":    (2.5,    "mars.jpg",      220,   2.4,   0.97,   25.19,  (1.0, 0.5, 0.3)),
+    "Jupiter": (15.0,   "jupiter.jpg",   350,   1.3,   2.4,    3.13,   (0.95, 0.85, 0.7)),
+    "Saturn":  (12.0,   "saturn.jpg",    520,   0.9,   2.2,    26.73,  (1.0, 0.95, 0.8)),
+    "Uranus":  (8.0,    "uranus.jpg",    700,   0.6,   -1.4,   97.77,  (0.5, 0.8, 1.0)),
+    "Neptune": (7.5,    "neptune.jpg",   900,   0.5,   1.5,    28.32,  (0.2, 0.4, 1.0)),
 }
 
 PLANET_ORDER = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
@@ -49,12 +56,17 @@ MOON_DATA = {
     "Moon": (1.2, "moon.jpg", 12.0, 13.0, 0.0)
 }
 
-SATURN_RING_TEXTURE = "saturn_rings.png" # PNG for transparency
+SATURN_RING_TEXTURE = "saturn_rings.jpg" 
 STARFIELD_TEXTURE = "HDR_rich_multi_nebulae_1.hdr"
 
 # ============= HELPERS =============
 def resource_path(filename):
+    """Get the full path to a resource in the TEX_DIR."""
     return os.path.join(TEX_DIR, filename)
+
+def music_path(filename):
+    """Get the full path to a resource in the MUSIC_DIR."""
+    return os.path.join(MUSIC_DIR, filename)
 
 def load_texture(path, flip_y=True, is_hdr=False):
     """Load a texture, return GL texture id."""
@@ -294,6 +306,17 @@ def draw_billboard(cx, cy, cz, scale, tex_id, color=(1.0, 1.0, 1.0), alpha=1.0):
 class SolarSystemApp:
     def __init__(self, width, height):
         pygame.init()
+        pygame.mixer.init() # <-- Initialize the mixer
+        
+        # --- NEW MUSIC CHANNEL SETUP ---
+        pygame.mixer.set_num_channels(2) # We want two channels for crossfading
+        self.music_channel_a = pygame.mixer.Channel(0)
+        self.music_channel_b = pygame.mixer.Channel(1)
+        self.active_channel = self.music_channel_a   # Start with A
+        self.inactive_channel = self.music_channel_b # B is ready for next track
+        self.music_tracks = {} # Dictionary to hold our loaded music
+        # --- END NEW MUSIC SETUP ---
+        
         self.screen = pygame.display.set_mode((width, height), DOUBLEBUF | OPENGL)
         glutInit()
         pygame.display.set_caption("Cinematic Solar System - The Beginning")
@@ -316,6 +339,7 @@ class SolarSystemApp:
         self.state_timer = 0.0
         
         self.load_all_textures()
+        self.load_all_music() # <-- Load music at start
         self.init_opengl()
 
     def load_all_textures(self):
@@ -335,6 +359,29 @@ class SolarSystemApp:
         print("[INFO] Generating procedural nebula texture...")
         self.nebula_tex = self.create_procedural_nebula_texture()
         print("=== Ready ===\n")
+
+    def load_all_music(self):
+        """Loads all music tracks into memory as Sound objects."""
+        print("=== Loading Music ===")
+        tracks_to_load = {
+            "BIG_BANG": BIG_BANG_MUSIC,
+            "TRANSITION": TRANSITION_MUSIC,
+            "SOLAR_SYSTEM": SOLAR_SYSTEM_MUSIC
+        }
+        
+        for name, filename in tracks_to_load.items():
+            full_path = music_path(filename)
+            if not os.path.exists(full_path):
+                print(f"[WARN] Music file not found: {full_path}")
+                continue
+            
+            try:
+                sound = pygame.mixer.Sound(full_path)
+                self.music_tracks[name] = sound
+                print(f"[OK] Loaded music: {filename}")
+            except pygame.error as e:
+                print(f"[ERROR] Loading music {full_path}: {e}")
+        print("=== Music Ready ===\n")
 
     def create_procedural_starfield(self):
         texture_data = generate_starfield_texture(2048, 1024)
@@ -372,6 +419,38 @@ class SolarSystemApp:
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data.tobytes())
         glBindTexture(GL_TEXTURE_2D, 0)
         return tex_id
+
+    def play_music_for_state(self, state):
+        """Crossfades music using two channels."""
+        print(f"[MUSIC] Crossfading to {state}")
+        
+        # 1. Find the sound object to play
+        sound_to_play = self.music_tracks.get(state)
+            
+        if not sound_to_play:
+            print(f"[MUSIC] No track loaded for state: {state}")
+            # Stop all music if no track is found
+            self.active_channel.fadeout(1500)
+            self.inactive_channel.fadeout(1500)
+            return
+            
+        try:
+            # 2. Fade out the *currently active* channel (e.g., Channel A)
+            self.active_channel.fadeout(2000) # 2-second fade-out
+            
+            # 3. Play and fade in the new track on the *inactive* channel (e.g., Channel B)
+            self.inactive_channel.set_volume(0.7)
+            self.inactive_channel.play(sound_to_play, loops=-1, fade_ms=2000) # 2-second fade-in
+
+            # 4. Swap the channels. Channel B is now the active one.
+            temp = self.active_channel
+            self.active_channel = self.inactive_channel
+            self.inactive_channel = temp
+            
+            print(f"[MUSIC] Playing: {state}")
+            
+        except pygame.error as e:
+            print(f"[ERROR] Could not play music for {state}: {e}")
 
     def set_projection(self):
         glMatrixMode(GL_PROJECTION)
@@ -414,6 +493,7 @@ class SolarSystemApp:
             
             if self.state != "SOLAR_SYSTEM" and ev.type == KEYDOWN and ev.key == K_SPACE:
                 self.state = "SOLAR_SYSTEM"
+                self.play_music_for_state("SOLAR_SYSTEM") # <-- Trigger music
                 pygame.display.set_caption("Cinematic Solar System - Use Mouse to Rotate | 1-9: Planet Focus | 0: Free View")
 
             if self.state == "SOLAR_SYSTEM":
@@ -615,6 +695,9 @@ class SolarSystemApp:
         clock = pygame.time.Clock()
         last_time = pytime.time()
         
+        # Start the initial music
+        self.play_music_for_state(self.state)
+        
         while True:
             now = pytime.time()
             dt = now - last_time
@@ -630,6 +713,7 @@ class SolarSystemApp:
                 if self.state_timer > BIG_BANG_DURATION:
                     self.state = "TRANSITION"
                     self.state_timer = 0.0
+                    self.play_music_for_state("TRANSITION") # <-- Trigger music
                     pygame.display.set_caption("Cinematic Solar System - Forming...")
 
             elif self.state == "TRANSITION":
@@ -638,6 +722,7 @@ class SolarSystemApp:
                 self.render_scene(t, transition_progress=progress)
                 if self.state_timer > TRANSITION_DURATION:
                     self.state = "SOLAR_SYSTEM"
+                    self.play_music_for_state("SOLAR_SYSTEM") # <-- Trigger music
                     pygame.display.set_caption("Cinematic Solar System - Use Mouse to Rotate | 1-9: Planet Focus | 0: Free View")
 
             elif self.state == "SOLAR_SYSTEM":
@@ -651,7 +736,8 @@ class SolarSystemApp:
 if __name__ == "__main__":
     if not os.path.isdir(TEX_DIR):
         print(f"ERROR: Create a folder named '{TEX_DIR}' in the same directory as this script and add the required texture files inside it.")
+    elif not os.path.isdir(MUSIC_DIR):
+         print(f"ERROR: Create a folder named '{MUSIC_DIR}' in the same directory as this script and add your music files inside it.")
     else:
         app = SolarSystemApp(WINDOW_WIDTH, WINDOW_HEIGHT)
         app.run()
-
