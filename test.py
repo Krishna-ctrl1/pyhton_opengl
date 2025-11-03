@@ -6,7 +6,7 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
 from OpenGL.GLUT import glutSolidSphere
-from OpenGL.GLUT import GLUT_BITMAP_HELVETICA_18
+from OpenGL.GLUT import GLUT_BITMAP_HELVETICA_18, GLUT_BITMAP_HELVETICA_12
 from PIL import Image
 import numpy as np
 import sys
@@ -27,17 +27,16 @@ TEX_DIR = "textures"
 MUSIC_DIR = "music"
 
 # --- Animation Config ---
-BIG_BANG_DURATION = 4.0  # seconds
-TRANSITION_DURATION = 5.0 # seconds
+BIG_BANG_DURATION = 4.0
+TRANSITION_DURATION = 5.0
+INFO_CARD_TRANSITION = 0.5
 
 # --- Music Config ---
-# (Make sure you have these files in your 'music' folder!)
-BIG_BANG_MUSIC = "big_bang.ogg"     # A dramatic, explosive track
-TRANSITION_MUSIC = "creation.ogg"   # A soothing, building track
-SOLAR_SYSTEM_MUSIC = "ambient.ogg"  # A calm, looping space track
+BIG_BANG_MUSIC = "big_bang.ogg"
+TRANSITION_MUSIC = "creation.ogg"
+SOLAR_SYSTEM_MUSIC = "ambient.ogg"
 
 # ============= SCENE DATA =============
-# Format: name: (radius, texture, orbit_radius, orbit_speed, self_spin, axial_tilt, color)
 SOLAR_SYSTEM_DATA = {
     "Sun":     (25.0,   "sun.jpg",       0,     0.0,   0.02,   7.25,   (1.0, 0.95, 0.7)),
     "Mercury": (2.0,    "mercury.jpg",   60,    4.7,   0.04,   0.03,   (0.8, 0.8, 0.8)),
@@ -52,6 +51,152 @@ SOLAR_SYSTEM_DATA = {
 
 PLANET_ORDER = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
 
+# Planet information database
+PLANET_INFO = {
+    "Sun": {
+        "type": "Star",
+        "diameter": "1,391,000 km",
+        "mass": "1.989 × 10³⁰ kg",
+        "temperature": "5,778 K (surface)",
+        "age": "4.6 billion years",
+        "composition": "Hydrogen 73%, Helium 25%",
+        "facts": [
+            "The Sun contains 99.86% of the Solar System's mass",
+            "Light from the Sun takes 8 minutes to reach Earth",
+            "The Sun will become a red giant in 5 billion years",
+            "Core temperature reaches 15 million degrees Celsius"
+        ]
+    },
+    "Mercury": {
+        "type": "Terrestrial Planet",
+        "diameter": "4,879 km",
+        "mass": "3.285 × 10²³ kg",
+        "distance": "57.9 million km from Sun",
+        "day_length": "59 Earth days",
+        "year_length": "88 Earth days",
+        "temperature": "-173°C to 427°C",
+        "moons": "0",
+        "facts": [
+            "Smallest planet in our Solar System",
+            "Has no atmosphere to retain heat",
+            "Surface covered with impact craters",
+            "Named after Roman messenger god"
+        ]
+    },
+    "Venus": {
+        "type": "Terrestrial Planet",
+        "diameter": "12,104 km",
+        "mass": "4.867 × 10²⁴ kg",
+        "distance": "108.2 million km from Sun",
+        "day_length": "243 Earth days",
+        "year_length": "225 Earth days",
+        "temperature": "462°C (hottest planet)",
+        "moons": "0",
+        "facts": [
+            "Rotates backwards (retrograde rotation)",
+            "Hottest planet due to greenhouse effect",
+            "Thick atmosphere of carbon dioxide",
+            "Named after Roman goddess of love"
+        ]
+    },
+    "Earth": {
+        "type": "Terrestrial Planet",
+        "diameter": "12,742 km",
+        "mass": "5.972 × 10²⁴ kg",
+        "distance": "149.6 million km from Sun",
+        "day_length": "24 hours",
+        "year_length": "365.25 days",
+        "temperature": "-88°C to 58°C",
+        "moons": "1 (Moon)",
+        "facts": [
+            "Only known planet to support life",
+            "71% of surface covered by water",
+            "Atmosphere: 78% nitrogen, 21% oxygen",
+            "Has a powerful magnetic field"
+        ]
+    },
+    "Mars": {
+        "type": "Terrestrial Planet",
+        "diameter": "6,779 km",
+        "mass": "6.39 × 10²³ kg",
+        "distance": "227.9 million km from Sun",
+        "day_length": "24.6 hours",
+        "year_length": "687 Earth days",
+        "temperature": "-87°C to -5°C",
+        "moons": "2 (Phobos, Deimos)",
+        "facts": [
+            "Known as the Red Planet due to iron oxide",
+            "Has the largest volcano: Olympus Mons",
+            "Evidence of ancient water flows",
+            "Thin atmosphere, mostly carbon dioxide"
+        ]
+    },
+    "Jupiter": {
+        "type": "Gas Giant",
+        "diameter": "139,820 km",
+        "mass": "1.898 × 10²⁷ kg",
+        "distance": "778.5 million km from Sun",
+        "day_length": "10 hours",
+        "year_length": "12 Earth years",
+        "temperature": "-108°C",
+        "moons": "95+ known moons",
+        "facts": [
+            "Largest planet in Solar System",
+            "Great Red Spot is a massive storm",
+            "Has faint rings made of dust",
+            "Named after king of Roman gods"
+        ]
+    },
+    "Saturn": {
+        "type": "Gas Giant",
+        "diameter": "116,460 km",
+        "mass": "5.683 × 10²⁶ kg",
+        "distance": "1.43 billion km from Sun",
+        "day_length": "10.7 hours",
+        "year_length": "29 Earth years",
+        "temperature": "-139°C",
+        "moons": "146+ known moons",
+        "facts": [
+            "Famous for its spectacular ring system",
+            "Rings are made of ice and rock particles",
+            "Least dense planet (would float on water)",
+            "Named after Roman god of agriculture"
+        ]
+    },
+    "Uranus": {
+        "type": "Ice Giant",
+        "diameter": "50,724 km",
+        "mass": "8.681 × 10²⁵ kg",
+        "distance": "2.87 billion km from Sun",
+        "day_length": "17.2 hours",
+        "year_length": "84 Earth years",
+        "temperature": "-197°C",
+        "moons": "27 known moons",
+        "facts": [
+            "Rotates on its side (98° tilt)",
+            "Coldest planetary atmosphere",
+            "Has 13 faint rings",
+            "Appears blue-green due to methane"
+        ]
+    },
+    "Neptune": {
+        "type": "Ice Giant",
+        "diameter": "49,244 km",
+        "mass": "1.024 × 10²⁶ kg",
+        "distance": "4.5 billion km from Sun",
+        "day_length": "16 hours",
+        "year_length": "165 Earth years",
+        "temperature": "-201°C",
+        "moons": "14 known moons",
+        "facts": [
+            "Most distant planet from Sun",
+            "Has the strongest winds in Solar System",
+            "Dark blue color from methane",
+            "Named after Roman god of the sea"
+        ]
+    }
+}
+
 MOON_DATA = {
     "Moon": (1.2, "moon.jpg", 12.0, 13.0, 0.0)
 }
@@ -61,15 +206,12 @@ STARFIELD_TEXTURE = "HDR_rich_multi_nebulae_1.hdr"
 
 # ============= HELPERS =============
 def resource_path(filename):
-    """Get the full path to a resource in the TEX_DIR."""
     return os.path.join(TEX_DIR, filename)
 
 def music_path(filename):
-    """Get the full path to a resource in the MUSIC_DIR."""
     return os.path.join(MUSIC_DIR, filename)
 
 def load_texture(path, flip_y=True, is_hdr=False):
-    """Load a texture, return GL texture id."""
     full_path = resource_path(path)
     if not os.path.exists(full_path):
         print(f"[WARN] Texture not found: {full_path}")
@@ -82,21 +224,19 @@ def load_texture(path, flip_y=True, is_hdr=False):
                 import imageio.v3 as iio
                 img_data = iio.imread(full_path)
             except ImportError:
-                print(f"[WARN] 'imageio' not installed. Cannot load HDR: {path}. Trying PIL.")
                 img = Image.open(full_path)
                 img_data = np.array(img, dtype=np.uint8)
                 is_hdr = False
             except Exception as e:
-                print(f"[WARN] Could not load HDR {path} with imageio: {e}. Trying PIL.")
                 img = Image.open(full_path)
                 img_data = np.array(img, dtype=np.uint8)
                 is_hdr = False
             
             if is_hdr:
                 if img_data.dtype != np.float32:
-                    img_data = img_data.astype(np.float32) / 255.0 # Normalize if not float
+                    img_data = img_data.astype(np.float32) / 255.0
                 
-                if len(img_data.shape) == 2: # Grayscale
+                if len(img_data.shape) == 2:
                     img_data = np.stack([img_data, img_data, img_data], axis=-1)
                 
                 height, width = img_data.shape[:2]
@@ -110,11 +250,10 @@ def load_texture(path, flip_y=True, is_hdr=False):
                     img_data = np.flipud(img_data)
                 img_data_bytes = img_data.tobytes()
         
-        # Standard image loading (PIL)
         if not is_hdr:
             img = Image.open(full_path)
             if img.mode not in ["RGB", "RGBA"]:
-                img = img.convert("RGBA") # Convert to RGBA for consistency
+                img = img.convert("RGBA")
             if flip_y:
                 img = img.transpose(Image.FLIP_TOP_BOTTOM)
             
@@ -145,7 +284,6 @@ def load_texture(path, flip_y=True, is_hdr=False):
         return 0
 
 def draw_textured_sphere(radius, tex_id, color=(1,1,1), alpha=1.0, slices=SPHERE_SLICES, stacks=SPHERE_STACKS):
-    """Draw a textured sphere with alpha."""
     r, g, b = color
     glColor4f(r, g, b, alpha)
     
@@ -164,7 +302,6 @@ def draw_textured_sphere(radius, tex_id, color=(1,1,1), alpha=1.0, slices=SPHERE
         glDisable(GL_TEXTURE_2D)
 
 def draw_orbit_path(radius, num_segments=300, alpha=1.0):
-    """Draw orbit path around the sun"""
     glDisable(GL_LIGHTING)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -181,7 +318,6 @@ def draw_orbit_path(radius, num_segments=300, alpha=1.0):
     glEnable(GL_LIGHTING)
 
 def draw_label(x, y, z, text, scale=1.0, alpha=1.0):
-    """Draw 3D text label"""
     glDisable(GL_LIGHTING)
     glDisable(GL_DEPTH_TEST)
     glColor4f(1.0, 1.0, 1.0, alpha)
@@ -192,7 +328,6 @@ def draw_label(x, y, z, text, scale=1.0, alpha=1.0):
     glEnable(GL_LIGHTING)
 
 def generate_starfield_texture(width=2048, height=1024):
-    """Generate procedural starfield"""
     np.random.seed(123)
     texture = np.zeros((height, width, 3), dtype=np.uint8)
     
@@ -221,7 +356,6 @@ def generate_starfield_texture(width=2048, height=1024):
     return texture
 
 def generate_glow_texture(size=256):
-    """Generates a procedural radial glow texture (RGBA)."""
     texture = np.zeros((size, size, 4), dtype=np.uint8)
     center_x, center_y = size // 2, size // 2
     max_dist = math.sqrt(center_x**2 + center_y**2)
@@ -237,7 +371,6 @@ def generate_glow_texture(size=256):
     return texture
 
 def generate_nebula_texture(size=256):
-    """Generates a procedural nebula/cloud texture (RGBA)."""
     noise = np.random.rand(size, size) * 0.2
     for _ in range(4):
         scale = np.random.randint(16, 32)
@@ -245,8 +378,6 @@ def generate_nebula_texture(size=256):
         small_grid = np.random.rand(max(1, size // scale), max(1, size // scale))
         scaled_grid = np.kron(small_grid, np.ones((scale, scale)))
         
-        # FIX: Pad or crop the scaled grid to ensure it's the correct size
-        # This prevents the broadcasting error.
         temp_grid = np.zeros((size, size))
         h, w = min(size, scaled_grid.shape[0]), min(size, scaled_grid.shape[1])
         temp_grid[:h, :w] = scaled_grid[:h, :w]
@@ -272,7 +403,6 @@ def generate_nebula_texture(size=256):
     return texture
 
 def draw_billboard(cx, cy, cz, scale, tex_id, color=(1.0, 1.0, 1.0), alpha=1.0):
-    """Draw a texture on a quad that always faces the camera."""
     modelview = glGetDoublev(GL_MODELVIEW_MATRIX)
     cam_right = [modelview[0][0], modelview[1][0], modelview[2][0]]
     cam_up = [modelview[0][1], modelview[1][1], modelview[2][1]]
@@ -302,20 +432,72 @@ def draw_billboard(cx, cy, cz, scale, tex_id, color=(1.0, 1.0, 1.0), alpha=1.0):
     glBindTexture(GL_TEXTURE_2D, 0)
     glDisable(GL_TEXTURE_2D)
 
+def draw_text_2d(x, y, text, font=GLUT_BITMAP_HELVETICA_18, color=(1,1,1)):
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    glOrtho(0, WINDOW_WIDTH, 0, WINDOW_HEIGHT, -1, 1)
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+    
+    glDisable(GL_LIGHTING)
+    glDisable(GL_DEPTH_TEST)
+    glColor3f(*color)
+    glRasterPos2f(x, y)
+    for ch in text:
+        glutBitmapCharacter(font, ord(ch))
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
+    
+    glPopMatrix()
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+
+def draw_rounded_rect_2d(x, y, width, height, color, alpha=1.0):
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    glOrtho(0, WINDOW_WIDTH, 0, WINDOW_HEIGHT, -1, 1)
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+    
+    glDisable(GL_LIGHTING)
+    glDisable(GL_DEPTH_TEST)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    
+    glColor4f(color[0], color[1], color[2], alpha)
+    glBegin(GL_QUADS)
+    glVertex2f(x, y)
+    glVertex2f(x + width, y)
+    glVertex2f(x + width, y + height)
+    glVertex2f(x, y + height)
+    glEnd()
+    
+    glDisable(GL_BLEND)
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
+    
+    glPopMatrix()
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+
 # ============= MAIN APP =============
 class SolarSystemApp:
     def __init__(self, width, height):
         pygame.init()
-        pygame.mixer.init() # <-- Initialize the mixer
+        pygame.mixer.init()
         
-        # --- NEW MUSIC CHANNEL SETUP ---
-        pygame.mixer.set_num_channels(2) # We want two channels for crossfading
+        pygame.mixer.set_num_channels(2)
         self.music_channel_a = pygame.mixer.Channel(0)
         self.music_channel_b = pygame.mixer.Channel(1)
-        self.active_channel = self.music_channel_a   # Start with A
-        self.inactive_channel = self.music_channel_b # B is ready for next track
-        self.music_tracks = {} # Dictionary to hold our loaded music
-        # --- END NEW MUSIC SETUP ---
+        self.active_channel = self.music_channel_a
+        self.inactive_channel = self.music_channel_b
+        self.music_tracks = {}
         
         self.screen = pygame.display.set_mode((width, height), DOUBLEBUF | OPENGL)
         glutInit()
@@ -334,19 +516,24 @@ class SolarSystemApp:
         self.planet_positions = {}
         self.textures = {}
 
-        # --- State Machine ---
+        self.info_card_active = False
+        self.info_card_planet = None
+        self.info_card_progress = 0.0
+        self.info_card_target_progress = 0.0
+
         self.state = "BIG_BANG"
         self.state_timer = 0.0
         
         self.load_all_textures()
-        self.load_all_music() # <-- Load music at start
+        self.load_all_music()
         self.init_opengl()
 
     def load_all_textures(self):
-        """Load all textures"""
         print("\n=== Loading Textures ===")
-        for name, data in SOLAR_SYSTEM_DATA.items(): self.textures[name] = load_texture(data[1])
-        for name, data in MOON_DATA.items(): self.textures[name] = load_texture(data[1])
+        for name, data in SOLAR_SYSTEM_DATA.items(): 
+            self.textures[name] = load_texture(data[1])
+        for name, data in MOON_DATA.items(): 
+            self.textures[name] = load_texture(data[1])
         self.ring_tex = load_texture(SATURN_RING_TEXTURE)
         
         self.starfield_tex = load_texture(STARFIELD_TEXTURE, flip_y=False, is_hdr=True)
@@ -361,7 +548,6 @@ class SolarSystemApp:
         print("=== Ready ===\n")
 
     def load_all_music(self):
-        """Loads all music tracks into memory as Sound objects."""
         print("=== Loading Music ===")
         tracks_to_load = {
             "BIG_BANG": BIG_BANG_MUSIC,
@@ -421,34 +607,21 @@ class SolarSystemApp:
         return tex_id
 
     def play_music_for_state(self, state):
-        """Crossfades music using two channels."""
         print(f"[MUSIC] Crossfading to {state}")
-        
-        # 1. Find the sound object to play
         sound_to_play = self.music_tracks.get(state)
-            
         if not sound_to_play:
             print(f"[MUSIC] No track loaded for state: {state}")
-            # Stop all music if no track is found
             self.active_channel.fadeout(1500)
             self.inactive_channel.fadeout(1500)
             return
-            
         try:
-            # 2. Fade out the *currently active* channel (e.g., Channel A)
-            self.active_channel.fadeout(2000) # 2-second fade-out
-            
-            # 3. Play and fade in the new track on the *inactive* channel (e.g., Channel B)
+            self.active_channel.fadeout(2000)
             self.inactive_channel.set_volume(0.7)
-            self.inactive_channel.play(sound_to_play, loops=-1, fade_ms=2000) # 2-second fade-in
-
-            # 4. Swap the channels. Channel B is now the active one.
+            self.inactive_channel.play(sound_to_play, loops=-1, fade_ms=2000)
             temp = self.active_channel
             self.active_channel = self.inactive_channel
             self.inactive_channel = temp
-            
             print(f"[MUSIC] Playing: {state}")
-            
         except pygame.error as e:
             print(f"[ERROR] Could not play music for {state}: {e}")
 
@@ -459,10 +632,8 @@ class SolarSystemApp:
         glMatrixMode(GL_MODELVIEW)
 
     def init_opengl(self):
-        """Initialize OpenGL"""
         glViewport(0, 0, self.width, self.height)
         self.set_projection()
-        
         glEnable(GL_DEPTH_TEST)
         glDepthFunc(GL_LEQUAL)
         glEnable(GL_LIGHTING)
@@ -470,22 +641,18 @@ class SolarSystemApp:
         glEnable(GL_NORMALIZE)
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
-        
         glLightfv(GL_LIGHT0, GL_POSITION, [0.0, 0.0, 0.0, 1.0])
         glLightfv(GL_LIGHT0, GL_DIFFUSE, [1.0, 1.0, 1.0, 1.0])
         glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
         glLightfv(GL_LIGHT0, GL_AMBIENT, [0.3, 0.3, 0.35, 1.0])
         glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.25, 0.25, 0.3, 1.0])
-        
         glClearColor(0.0, 0.0, 0.0, 1.0)
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
-        
         glMaterialfv(GL_FRONT, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
         glMaterialf(GL_FRONT, GL_SHININESS, 32)
 
     def handle_events(self):
-        """Handle input"""
         for ev in pygame.event.get():
             if ev.type == QUIT or (ev.type == KEYDOWN and ev.key == K_ESCAPE):
                 pygame.quit()
@@ -493,46 +660,65 @@ class SolarSystemApp:
             
             if self.state != "SOLAR_SYSTEM" and ev.type == KEYDOWN and ev.key == K_SPACE:
                 self.state = "SOLAR_SYSTEM"
-                self.play_music_for_state("SOLAR_SYSTEM") # <-- Trigger music
-                pygame.display.set_caption("Cinematic Solar System - Use Mouse to Rotate | 1-9: Planet Focus | 0: Free View")
+                self.play_music_for_state("SOLAR_SYSTEM")
+                pygame.display.set_caption("Solar System - 1-9: Planet Info | 0: Free View")
 
             if self.state == "SOLAR_SYSTEM":
                 if ev.type == KEYDOWN:
                     if K_1 <= ev.key <= K_9:
                         idx = ev.key - K_1
                         if idx < len(PLANET_ORDER):
-                            self.camera_target = PLANET_ORDER[idx]
-                            print(f"Tracking: {self.camera_target}")
+                            planet_name = PLANET_ORDER[idx]
+                            if self.info_card_active and self.info_card_planet == planet_name:
+                                self.info_card_target_progress = 0.0
+                                self.info_card_active = False
+                                print(f"Closing info card: {planet_name}")
+                            else:
+                                self.info_card_planet = planet_name
+                                self.info_card_target_progress = 1.0
+                                self.info_card_active = True
+                                self.camera_target = planet_name
+                                print(f"Opening info card: {planet_name}")
                     elif ev.key == K_0:
+                        self.info_card_target_progress = 0.0
+                        self.info_card_active = False
                         self.camera_target = None
                         print("Free view")
                 
-                if ev.type == MOUSEBUTTONDOWN:
-                    if ev.button == 1:
-                        self.dragging = True
-                        self.last_mouse = ev.pos
-                    elif ev.button == 4: self.cam_dist += WHEEL_ZOOM_STEP
-                    elif ev.button == 5: self.cam_dist -= WHEEL_ZOOM_STEP
-                
-                if ev.type == MOUSEBUTTONUP and ev.button == 1: self.dragging = False
-                
-                if ev.type == MOUSEMOTION and self.dragging:
-                    x, y = ev.pos
-                    lx, ly = self.last_mouse
-                    self.vel_y += (x - lx) * MOUSE_SENSITIVITY
-                    self.vel_x += (y - ly) * MOUSE_SENSITIVITY
-                    self.last_mouse = (x, y)
+                if not self.info_card_active:
+                    if ev.type == MOUSEBUTTONDOWN:
+                        if ev.button == 1:
+                            self.dragging = True
+                            self.last_mouse = ev.pos
+                        elif ev.button == 4: 
+                            self.cam_dist += WHEEL_ZOOM_STEP
+                        elif ev.button == 5: 
+                            self.cam_dist -= WHEEL_ZOOM_STEP
+                    if ev.type == MOUSEBUTTONUP and ev.button == 1: 
+                        self.dragging = False
+                    if ev.type == MOUSEMOTION and self.dragging:
+                        x, y = ev.pos
+                        lx, ly = self.last_mouse
+                        self.vel_y += (x - lx) * MOUSE_SENSITIVITY
+                        self.vel_x += (y - ly) * MOUSE_SENSITIVITY
+                        self.last_mouse = (x, y)
 
     def update_camera(self, dt):
-        """Update camera"""
         self.cam_rot_y += self.vel_y * dt * 60
         self.cam_rot_x += self.vel_x * dt * 60
         self.vel_x *= DRAG_DAMPING
         self.vel_y *= DRAG_DAMPING
         self.cam_rot_x = max(-89.0, min(89.0, self.cam_rot_x))
 
+    def update_info_card(self, dt):
+        if self.info_card_progress < self.info_card_target_progress:
+            self.info_card_progress = min(self.info_card_target_progress, 
+                                         self.info_card_progress + dt / INFO_CARD_TRANSITION)
+        elif self.info_card_progress > self.info_card_target_progress:
+            self.info_card_progress = max(self.info_card_target_progress, 
+                                         self.info_card_progress - dt / INFO_CARD_TRANSITION)
+
     def draw_starfield(self, alpha=1.0):
-        """Draw background starfield"""
         glPushMatrix()
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
@@ -544,21 +730,16 @@ class SolarSystemApp:
         glPopMatrix()
 
     def render_big_bang(self):
-        """Render the new nebula expansion explosion."""
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glLoadIdentity()
-        glTranslatef(0.0, 0.0, -1000) # Fixed camera
-
+        glTranslatef(0.0, 0.0, -1000)
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE)
         glDepthMask(GL_FALSE)
-
         progress = self.state_timer / BIG_BANG_DURATION
-
         if progress < 1.0:
             alpha = (1.0 - progress) ** 1.5
-            
             num_layers = 4
             for i in range(num_layers):
                 glPushMatrix()
@@ -568,30 +749,156 @@ class SolarSystemApp:
                 scale = (progress ** 1.5) * (1000 + i * 200)
                 draw_billboard(0, 0, 0, scale, self.nebula_tex, color=(1.5, 1.5, 1.5), alpha=alpha * 0.7)
                 glPopMatrix()
-
         if progress < 0.3:
             flash_alpha = (1.0 - (progress / 0.3))
             flash_scale = 50 + (1000 * (progress / 0.3))
             if self.sun_glow_tex > 0:
                 draw_billboard(0, 0, 0, flash_scale, self.sun_glow_tex, color=(2.5, 2.5, 2.2), alpha=flash_alpha)
-
         glDepthMask(GL_TRUE)
         glDisable(GL_BLEND)
         glEnable(GL_LIGHTING)
 
+    def render_minimap_scene(self, t, viewport_rect):
+        vx, vy, vw, vh = viewport_rect
+        glViewport(vx, vy, vw, vh)
+        glScissor(vx, vy, vw, vh)
+        glEnable(GL_SCISSOR_TEST)
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+        gluPerspective(45.0, float(vw)/vh, 0.1, 50000.0)
+        glMatrixMode(GL_MODELVIEW)
+        glClear(GL_DEPTH_BUFFER_BIT)
+        glPushMatrix()
+        glLoadIdentity()
+        glRotatef(self.cam_rot_x, 1, 0, 0)
+        glRotatef(self.cam_rot_y, 0, 1, 0)
+        if self.starfield_tex > 0:
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+            self.draw_starfield(alpha=0.5)
+            glDisable(GL_BLEND)
+        glPopMatrix()
+        glLoadIdentity()
+        glTranslatef(0.0, 0.0, -2000.0)
+        glRotatef(-20.0, 1, 0, 0)
+        glRotatef(self.cam_rot_y * 0.3, 0, 1, 0)
+        glLightfv(GL_LIGHT0, GL_POSITION, [0.0, 0.0, 0.0, 1.0])
+        glPushMatrix()
+        sun_data = SOLAR_SYSTEM_DATA["Sun"]
+        radius = sun_data[0]
+        glDisable(GL_LIGHTING)
+        draw_textured_sphere(radius, self.textures.get("Sun"), color=(2.0, 1.6, 1.2))
+        glEnable(GL_LIGHTING)
+        glPopMatrix()
+        for name, data in SOLAR_SYSTEM_DATA.items():
+            if name == "Sun": continue
+            radius, _, orbit_r, _, spin, tilt, color = data
+            x, y, z = self.planet_positions.get(name, (0, 0, 0))
+            glPushMatrix()
+            glTranslatef(x, y, z)
+            draw_textured_sphere(radius, self.textures.get(name), color)
+            glPopMatrix()
+        glDisable(GL_SCISSOR_TEST)
+        glViewport(0, 0, self.width, self.height)
+        self.set_projection()
+
+    def draw_info_card(self, planet_name, progress):
+        if planet_name not in PLANET_INFO:
+            return
+        info = PLANET_INFO[planet_name]
+        card_width = 700
+        card_height = self.height - 100
+        card_x = self.width - card_width - 30 + int((1.0 - progress) * (card_width + 100))
+        card_y = 50
+        bg_alpha = 0.92 * progress
+        draw_rounded_rect_2d(card_x, card_y, card_width, card_height, (0.05, 0.05, 0.15), bg_alpha)
+        draw_rounded_rect_2d(card_x - 2, card_y - 2, card_width + 4, card_height + 4, (0.3, 0.5, 0.8), 0.3 * progress)
+        current_y = self.height - card_y - 40
+        line_height = 25
+        small_line_height = 20
+        title_color = SOLAR_SYSTEM_DATA[planet_name][6]
+        draw_text_2d(card_x + 30, current_y, planet_name.upper(), GLUT_BITMAP_HELVETICA_18, title_color)
+        current_y -= 35
+        draw_text_2d(card_x + 30, current_y, info["type"], GLUT_BITMAP_HELVETICA_12, (0.7, 0.7, 0.7))
+        current_y -= 40
+        draw_rounded_rect_2d(card_x + 30, current_y, card_width - 60, 2, (0.3, 0.5, 0.8), 0.5 * progress)
+        current_y -= 30
+        draw_text_2d(card_x + 30, current_y, "PHYSICAL CHARACTERISTICS", GLUT_BITMAP_HELVETICA_12, (0.5, 0.7, 1.0))
+        current_y -= 25
+        characteristics = [
+            ("Diameter:", info.get("diameter", "N/A")),
+            ("Mass:", info.get("mass", "N/A")),
+            ("Temperature:", info.get("temperature", "N/A")),
+        ]
+        if planet_name != "Sun":
+            characteristics.extend([
+                ("Distance from Sun:", info.get("distance", "N/A")),
+                ("Day Length:", info.get("day_length", "N/A")),
+                ("Year Length:", info.get("year_length", "N/A")),
+                ("Moons:", info.get("moons", "N/A")),
+            ])
+        else:
+            characteristics.extend([
+                ("Age:", info.get("age", "N/A")),
+                ("Composition:", info.get("composition", "N/A")),
+            ])
+        for label, value in characteristics:
+            draw_text_2d(card_x + 40, current_y, label, GLUT_BITMAP_HELVETICA_12, (0.6, 0.6, 0.6))
+            draw_text_2d(card_x + 200, current_y, value, GLUT_BITMAP_HELVETICA_12, (1.0, 1.0, 1.0))
+            current_y -= small_line_height
+        current_y -= 20
+        draw_rounded_rect_2d(card_x + 30, current_y, card_width - 60, 2, (0.3, 0.5, 0.8), 0.5 * progress)
+        current_y -= 30
+        draw_text_2d(card_x + 30, current_y, "INTERESTING FACTS", GLUT_BITMAP_HELVETICA_12, (0.5, 0.7, 1.0))
+        current_y -= 25
+        for i, fact in enumerate(info["facts"], 1):
+            words = fact.split()
+            line = f"{i}. "
+            max_width = 60
+            for word in words:
+                if len(line) + len(word) + 1 <= max_width:
+                    line += word + " "
+                else:
+                    draw_text_2d(card_x + 40, current_y, line.strip(), GLUT_BITMAP_HELVETICA_12, (0.9, 0.9, 0.9))
+                    current_y -= small_line_height
+                    line = "   " + word + " "
+            if line.strip():
+                draw_text_2d(card_x + 40, current_y, line.strip(), GLUT_BITMAP_HELVETICA_12, (0.9, 0.9, 0.9))
+                current_y -= small_line_height
+            current_y -= 10
+        current_y = card_y + 30
+        draw_text_2d(card_x + 30, current_y, f"Press {PLANET_ORDER.index(planet_name) + 1} again to close | Press 0 for free view", 
+                    GLUT_BITMAP_HELVETICA_12, (0.5, 0.5, 0.5))
+
     def render_scene(self, t, transition_progress=1.0):
-        """Render the main solar system scene."""
         self.planet_positions.clear()
         for name, data in SOLAR_SYSTEM_DATA.items():
-            if name == "Sun": self.planet_positions["Sun"] = (0, 0, 0); continue
+            if name == "Sun": 
+                self.planet_positions["Sun"] = (0, 0, 0)
+                continue
             _, _, orbit_r, orbit_speed, _, _, _ = data
             angle = t * orbit_speed
             x = orbit_r * math.sin(angle)
             z = orbit_r * math.cos(angle)
             self.planet_positions[name] = (x, 0.0, z)
         
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        if self.info_card_progress > 0.01:
+            minimap_width = 400
+            minimap_height = 300
+            minimap_x = 20
+            minimap_y = 20
+            minimap_scale = 0.5 + 0.5 * self.info_card_progress
+            final_width = int(minimap_width * minimap_scale)
+            final_height = int(minimap_height * minimap_scale)
+            draw_rounded_rect_2d(minimap_x - 3, minimap_y - 3, final_width + 6, final_height + 6, 
+                               (0.3, 0.5, 0.8), 0.5 * self.info_card_progress)
+            draw_rounded_rect_2d(minimap_x, minimap_y, final_width, final_height, 
+                               (0.0, 0.0, 0.0), 0.8 * self.info_card_progress)
+            self.render_minimap_scene(t, (minimap_x, minimap_y, final_width, final_height))
+            draw_text_2d(minimap_x + 10, minimap_y + final_height - 20, "SOLAR SYSTEM", 
+                        GLUT_BITMAP_HELVETICA_12, (0.5, 0.7, 1.0))
         
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glPushMatrix()
         glLoadIdentity()
         glRotatef(self.cam_rot_x, 1, 0, 0)
@@ -602,78 +909,77 @@ class SolarSystemApp:
             self.draw_starfield(alpha=transition_progress)
             glDisable(GL_BLEND)
         glPopMatrix()
-        
         glLoadIdentity()
-        glTranslatef(0.0, 0.0, self.cam_dist)
-        glRotatef(self.cam_rot_x, 1, 0, 0)
-        glRotatef(self.cam_rot_y, 0, 1, 0)
-        
+        if self.info_card_progress > 0.01 and self.info_card_planet:
+            focus_dist = -300.0 - (self.info_card_progress * 200.0)
+            glTranslatef(0.0, 0.0, focus_dist)
+            glRotatef(-20.0 + self.cam_rot_x * 0.3, 1, 0, 0)
+            glRotatef(self.cam_rot_y * 0.3, 0, 1, 0)
+            if self.info_card_planet in self.planet_positions:
+                px, py, pz = self.planet_positions[self.info_card_planet]
+                glTranslatef(-px, -py, -pz)
+        else:
+            glTranslatef(0.0, 0.0, self.cam_dist)
+            glRotatef(self.cam_rot_x, 1, 0, 0)
+            glRotatef(self.cam_rot_y, 0, 1, 0)
+            if self.camera_target and self.camera_target in self.planet_positions:
+                px, py, pz = self.planet_positions[self.camera_target]
+                glTranslatef(-px, -py, -pz)
         glLightfv(GL_LIGHT0, GL_POSITION, [0.0, 0.0, 0.0, 1.0])
-        
-        if self.camera_target and self.camera_target in self.planet_positions:
-            px, py, pz = self.planet_positions[self.camera_target]
-            glTranslatef(-px, -py, -pz)
-        
         glPushMatrix()
         sun_data = SOLAR_SYSTEM_DATA["Sun"]
         radius, tex, _, _, spin, tilt, _ = sun_data
         glRotatef(tilt, 1, 0, 0)
         glRotatef((t * spin * 50.0) % 360.0, 0, 1, 0)
-        
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-
         current_radius = radius * transition_progress
+        if self.info_card_planet == "Sun" and self.info_card_progress > 0.01:
+            current_radius *= (1.0 + self.info_card_progress * 2.0)
         draw_textured_sphere(current_radius, self.textures.get("Sun"), color=(2.0, 1.6, 1.2), alpha=transition_progress)
-        
         if self.sun_glow_tex > 0:
             glDisable(GL_LIGHTING)
             draw_billboard(0, 0, 0, current_radius * 5.0, self.sun_glow_tex, color=(1.6, 0.8, 0.2), alpha=transition_progress)
-
         glEnable(GL_LIGHTING)
         glColor3f(1.0, 1.0, 1.0)
         glDisable(GL_BLEND)
-
         glPopMatrix()
-        draw_label(0, sun_data[0] + 6, 0, "SUN", alpha=transition_progress)
-        
+        if self.info_card_progress < 0.5:
+            draw_label(0, sun_data[0] + 6, 0, "SUN", alpha=transition_progress * (1.0 - self.info_card_progress * 2))
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         for name, data in SOLAR_SYSTEM_DATA.items():
             if name == "Sun": continue
-            
             radius, _, orbit_r, _, spin, tilt, color = data
             x, y, z = self.planet_positions[name]
-            
-            draw_orbit_path(orbit_r, alpha=transition_progress)
-            
+            orbit_alpha = transition_progress * (1.0 - self.info_card_progress * 0.7)
+            draw_orbit_path(orbit_r, alpha=orbit_alpha)
             glPushMatrix()
             glTranslatef(x, y, z)
             glRotatef(tilt, 1, 0, 0)
             glRotatef((t * spin * 50.0) % 360.0, 0, 1, 0)
-            
-            draw_textured_sphere(radius, self.textures.get(name), color, alpha=transition_progress)
-            
+            planet_scale = 1.0
+            if self.info_card_planet == name and self.info_card_progress > 0.01:
+                planet_scale = 1.0 + self.info_card_progress * 3.0
+            draw_textured_sphere(radius * planet_scale, self.textures.get(name), color, alpha=transition_progress)
             if name == "Earth":
                 m_data = MOON_DATA["Moon"]
                 m_rad, _, m_dist, m_speed, m_spin = m_data
                 m_angle = t * m_speed
                 mx, mz = m_dist * math.sin(m_angle), m_dist * math.cos(m_angle)
-                
                 glPushMatrix()
-                glTranslatef(mx, 0, mz)
+                glTranslatef(mx / planet_scale, 0, mz / planet_scale)
                 glRotatef((t * m_spin * 50) % 360, 0, 1, 0)
                 draw_textured_sphere(m_rad, self.textures.get("Moon"), (1,1,1), alpha=transition_progress)
                 glPopMatrix()
-            
             elif name == "Saturn":
                 if self.ring_tex > 0:
-                    glEnable(GL_TEXTURE_2D); glBindTexture(GL_TEXTURE_2D, self.ring_tex)
-                    glDisable(GL_LIGHTING); glColor4f(1.0, 1.0, 1.0, 0.8 * transition_progress)
-                    
-                    inner, outer, segments = radius + 3, radius + 14, 128
-                    
+                    glEnable(GL_TEXTURE_2D)
+                    glBindTexture(GL_TEXTURE_2D, self.ring_tex)
+                    glDisable(GL_LIGHTING)
+                    glColor4f(1.0, 1.0, 1.0, 0.8 * transition_progress)
+                    inner, outer, segments = (radius + 3) * planet_scale, (radius + 14) * planet_scale, 128
                     glBegin(GL_TRIANGLE_STRIP)
                     for i in range(segments + 1):
                         angle = (i / segments) * 2.0 * math.pi
@@ -683,61 +989,56 @@ class SolarSystemApp:
                         glTexCoord2f(u, 0); glVertex3f(xi, 0, zi)
                         glTexCoord2f(u, 1); glVertex3f(xo, 0, zo)
                     glEnd()
-                    
-                    glEnable(GL_LIGHTING); glBindTexture(GL_TEXTURE_2D, 0); glDisable(GL_TEXTURE_2D)
-            
+                    glEnable(GL_LIGHTING)
+                    glBindTexture(GL_TEXTURE_2D, 0)
+                    glDisable(GL_TEXTURE_2D)
             glPopMatrix()
-            draw_label(x, y + radius + 3, z, name.upper(), alpha=transition_progress)
+            if self.info_card_progress < 0.5:
+                label_alpha = transition_progress * (1.0 - self.info_card_progress * 2)
+                draw_label(x, y + radius + 3, z, name.upper(), alpha=label_alpha)
         glDisable(GL_BLEND)
+        if self.info_card_progress > 0.01 and self.info_card_planet:
+            self.draw_info_card(self.info_card_planet, self.info_card_progress)
 
     def run(self):
-        """Main loop"""
         clock = pygame.time.Clock()
         last_time = pytime.time()
-        
-        # Start the initial music
         self.play_music_for_state(self.state)
-        
         while True:
             now = pytime.time()
             dt = now - last_time
             last_time = now
-            
             self.handle_events()
-            
             if self.state != "SOLAR_SYSTEM":
                 self.state_timer += dt
-
             if self.state == "BIG_BANG":
                 self.render_big_bang()
                 if self.state_timer > BIG_BANG_DURATION:
                     self.state = "TRANSITION"
                     self.state_timer = 0.0
-                    self.play_music_for_state("TRANSITION") # <-- Trigger music
+                    self.play_music_for_state("TRANSITION")
                     pygame.display.set_caption("Cinematic Solar System - Forming...")
-
             elif self.state == "TRANSITION":
                 t = pygame.time.get_ticks() / 12000.0
                 progress = min(1.0, self.state_timer / TRANSITION_DURATION)
                 self.render_scene(t, transition_progress=progress)
                 if self.state_timer > TRANSITION_DURATION:
                     self.state = "SOLAR_SYSTEM"
-                    self.play_music_for_state("SOLAR_SYSTEM") # <-- Trigger music
-                    pygame.display.set_caption("Cinematic Solar System - Use Mouse to Rotate | 1-9: Planet Focus | 0: Free View")
-
+                    self.play_music_for_state("SOLAR_SYSTEM")
+                    pygame.display.set_caption("Solar System - 1-9: Planet Info | 0: Free View")
             elif self.state == "SOLAR_SYSTEM":
                 self.update_camera(dt)
+                self.update_info_card(dt)
                 t = pygame.time.get_ticks() / 12000.0
                 self.render_scene(t)
-            
             pygame.display.flip()
             clock.tick(FPS)
 
 if __name__ == "__main__":
     if not os.path.isdir(TEX_DIR):
-        print(f"ERROR: Create a folder named '{TEX_DIR}' in the same directory as this script and add the required texture files inside it.")
+        print(f"ERROR: Create '{TEX_DIR}' folder with texture files.")
     elif not os.path.isdir(MUSIC_DIR):
-         print(f"ERROR: Create a folder named '{MUSIC_DIR}' in the same directory as this script and add your music files inside it.")
+         print(f"ERROR: Create '{MUSIC_DIR}' folder with music files.")
     else:
         app = SolarSystemApp(WINDOW_WIDTH, WINDOW_HEIGHT)
         app.run()
