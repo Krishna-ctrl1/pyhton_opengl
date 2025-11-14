@@ -11,6 +11,7 @@ from PIL import Image
 import numpy as np
 import sys
 import time as pytime
+import random
 
 # ============= CONFIG =============
 WINDOW_WIDTH = 1920
@@ -35,6 +36,14 @@ INFO_CARD_TRANSITION = 0.5
 BIG_BANG_MUSIC = "big_bang.ogg"
 TRANSITION_MUSIC = "creation.ogg"
 SOLAR_SYSTEM_MUSIC = "ambient.ogg"
+
+# --- Asteroid Belt Config ---
+NUM_ASTEROIDS = 200
+ASTEROID_BELT_INNER = 260
+ASTEROID_BELT_OUTER = 310
+
+# --- Satellite Config ---
+NUM_SATELLITES = 3
 
 # ============= SCENE DATA =============
 SOLAR_SYSTEM_DATA = {
@@ -455,6 +464,39 @@ def draw_text_2d(x, y, text, font=GLUT_BITMAP_HELVETICA_18, color=(1,1,1)):
     glPopMatrix()
     glMatrixMode(GL_MODELVIEW)
 
+def draw_gradient_rect_2d(x, y, width, height, color_top, color_bottom, alpha=1.0):
+    """Draw a vertical gradient rectangle"""
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    glOrtho(0, WINDOW_WIDTH, 0, WINDOW_HEIGHT, -1, 1)
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+    
+    glDisable(GL_LIGHTING)
+    glDisable(GL_DEPTH_TEST)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    
+    glBegin(GL_QUADS)
+    glColor4f(color_bottom[0], color_bottom[1], color_bottom[2], alpha)
+    glVertex2f(x, y)
+    glVertex2f(x + width, y)
+    glColor4f(color_top[0], color_top[1], color_top[2], alpha)
+    glVertex2f(x + width, y + height)
+    glVertex2f(x, y + height)
+    glEnd()
+    
+    glDisable(GL_BLEND)
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
+    
+    glPopMatrix()
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+
 def draw_rounded_rect_2d(x, y, width, height, color, alpha=1.0):
     glMatrixMode(GL_PROJECTION)
     glPushMatrix()
@@ -524,9 +566,55 @@ class SolarSystemApp:
         self.state = "BIG_BANG"
         self.state_timer = 0.0
         
+        # Initialize asteroids
+        self.asteroids = self.generate_asteroids()
+        
+        # Initialize satellites
+        self.satellites = self.generate_satellites()
+        
         self.load_all_textures()
         self.load_all_music()
         self.init_opengl()
+
+    def generate_asteroids(self):
+        """Generate random asteroids in the belt between Mars and Jupiter"""
+        random.seed(42)
+        asteroids = []
+        for i in range(NUM_ASTEROIDS):
+            angle = random.uniform(0, 2 * math.pi)
+            radius = random.uniform(ASTEROID_BELT_INNER, ASTEROID_BELT_OUTER)
+            size = random.uniform(0.3, 1.2)
+            speed = random.uniform(0.5, 1.5)
+            offset_y = random.uniform(-5, 5)
+            rotation_speed = random.uniform(0.5, 2.0)
+            color_var = random.uniform(0.8, 1.2)
+            asteroids.append({
+                'angle': angle,
+                'radius': radius,
+                'size': size,
+                'speed': speed,
+                'offset_y': offset_y,
+                'rotation_speed': rotation_speed,
+                'color_var': color_var
+            })
+        return asteroids
+
+    def generate_satellites(self):
+        """Generate satellites orbiting Earth"""
+        random.seed(100)
+        satellites = []
+        for i in range(NUM_SATELLITES):
+            angle = random.uniform(0, 2 * math.pi)
+            distance = 10.0 + i * 3.0
+            speed = 8.0 + random.uniform(-2, 2)
+            inclination = random.uniform(-15, 15)
+            satellites.append({
+                'angle': angle,
+                'distance': distance,
+                'speed': speed,
+                'inclination': inclination
+            })
+        return satellites
 
     def load_all_textures(self):
         print("\n=== Loading Textures ===")
@@ -811,8 +899,16 @@ class SolarSystemApp:
         card_x = self.width - card_width - 30 + int((1.0 - progress) * (card_width + 100))
         card_y = 50
         bg_alpha = 0.92 * progress
-        draw_rounded_rect_2d(card_x, card_y, card_width, card_height, (0.05, 0.05, 0.15), bg_alpha)
+
+        # NEW: Replaced the solid rectangle with a gradient for a nicer aesthetic
+        color_top = (0.1, 0.1, 0.3) # Dark blue
+        color_bottom = (0.05, 0.05, 0.15) # Darker blue/purple
+        draw_gradient_rect_2d(card_x, card_y, card_width, card_height, color_top, color_bottom, bg_alpha)
+        # OLD line: draw_rounded_rect_2d(card_x, card_y, card_width, card_height, (0.05, 0.05, 0.15), bg_alpha)
+        
+        # This is the border
         draw_rounded_rect_2d(card_x - 2, card_y - 2, card_width + 4, card_height + 4, (0.3, 0.5, 0.8), 0.3 * progress)
+        
         current_y = self.height - card_y - 40
         line_height = 25
         small_line_height = 20
@@ -964,6 +1060,20 @@ class SolarSystemApp:
                 planet_scale = 1.0 + self.info_card_progress * 3.0
             draw_textured_sphere(radius * planet_scale, self.textures.get(name), color, alpha=transition_progress)
             if name == "Earth":
+                
+                # Draw Satellites orbiting Earth
+                for sat in self.satellites:
+                    sat_angle = t * sat['speed'] + sat['angle']
+                    dist = sat['distance'] / planet_scale
+                    sx = dist * math.sin(sat_angle)
+                    sz = dist * math.cos(sat_angle)
+                    sy = sx * math.sin(math.radians(sat['inclination'])) # cheap inclination
+                    glPushMatrix()
+                    glTranslatef(sx, sy, sz)
+                    draw_textured_sphere(0.15, 0, color=(0.8, 0.8, 0.9), slices=8, stacks=8)
+                    glPopMatrix()
+                
+                # Draw Moon
                 m_data = MOON_DATA["Moon"]
                 m_rad, _, m_dist, m_speed, m_spin = m_data
                 m_angle = t * m_speed
@@ -975,7 +1085,9 @@ class SolarSystemApp:
                 glPopMatrix()
             elif name == "Saturn":
                 if self.ring_tex > 0:
-                    glEnable(GL_TEXTURE_2D)
+                    # --- START FIX ---
+                    glEnable(GL_TEXTURE_2D) # Corrected from GL_TEXTURE_D
+                    # --- END FIX ---
                     glBindTexture(GL_TEXTURE_2D, self.ring_tex)
                     glDisable(GL_LIGHTING)
                     glColor4f(1.0, 1.0, 1.0, 0.8 * transition_progress)
@@ -996,10 +1108,32 @@ class SolarSystemApp:
             if self.info_card_progress < 0.5:
                 label_alpha = transition_progress * (1.0 - self.info_card_progress * 2)
                 draw_label(x, y + radius + 3, z, name.upper(), alpha=label_alpha)
+        
+        # Draw Asteroid Belt
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        asteroid_alpha = transition_progress * (1.0 - self.info_card_progress)
+        if asteroid_alpha > 0.01:
+            for asteroid in self.asteroids:
+                cv = asteroid['color_var']
+                asteroid_color = (0.6 * cv, 0.55 * cv, 0.5 * cv)
+                
+                angle = t * asteroid['speed'] + asteroid['angle']
+                x = asteroid['radius'] * math.sin(angle)
+                z = asteroid['radius'] * math.cos(angle)
+                y = asteroid['offset_y']
+                
+                glPushMatrix()
+                glTranslatef(x, y, z)
+                glRotatef(t * 100 * asteroid['rotation_speed'], 0.5, 1, 0)
+                draw_textured_sphere(asteroid['size'], 0, color=asteroid_color, alpha=asteroid_alpha, slices=8, stacks=8)
+                glPopMatrix()
         glDisable(GL_BLEND)
+        
+        glDisable(GL_BLEND) 
         if self.info_card_progress > 0.01 and self.info_card_planet:
             self.draw_info_card(self.info_card_planet, self.info_card_progress)
-
+            
     def run(self):
         clock = pygame.time.Clock()
         last_time = pytime.time()
