@@ -206,8 +206,6 @@ PLANET_INFO = {
     }
 }
 
-# NEW: Updated MOON_DATA structure to support multiple moons per planet
-# NOTE: You will need to add textures like "phobos.jpg", "io.jpg" etc. to your textures folder
 MOON_DATA = {
     # (Radius, Texture File, Orbit Radius, Orbit Speed, Spin Speed)
     "Earth": [
@@ -239,7 +237,6 @@ def music_path(filename):
 def load_texture(path, flip_y=True, is_hdr=False):
     full_path = resource_path(path)
     if not os.path.exists(full_path):
-        # Use a placeholder if texture is missing (e.g., for new moons)
         if "moon.jpg" in full_path and os.path.exists(resource_path("moon.jpg")):
              print(f"[WARN] Texture not found: {full_path}. Using 'moon.jpg' as placeholder.")
              return load_texture("moon.jpg", flip_y, is_hdr)
@@ -304,7 +301,7 @@ def load_texture(path, flip_y=True, is_hdr=False):
         glGenerateMipmap(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, 0)
         
-        if not is_hdr: # Don't log HDR, it's too spammy
+        if not is_hdr:
              print(f"[OK] {path} ({width}x{height}, HDR:{is_hdr})")
         return tex_id
     
@@ -401,7 +398,6 @@ def generate_glow_texture(size=256):
                 texture[y, x] = [255, 255, 255, alpha]
     return texture
 
-# NEW: Helper to generate a softer, colored glow for atmospheres
 def generate_atmosphere_texture(size=256, color=(150, 200, 255)):
     texture = np.zeros((size, size, 4), dtype=np.uint8)
     center_x, center_y = size // 2, size // 2
@@ -411,7 +407,6 @@ def generate_atmosphere_texture(size=256, color=(150, 200, 255)):
     for y in range(size):
         for x in range(size):
             dist = math.sqrt((x - center_x)**2 + (y - center_y)**2)
-            # Use a sharper falloff (higher power) for a thinner glow
             falloff = max(0, (1.0 - (dist / max_dist))) ** 4.0 
             alpha = int(255 * falloff)
             
@@ -460,7 +455,7 @@ def draw_billboard(cx, cy, cz, scale, tex_id, color=(1.0, 1.0, 1.0), alpha=1.0):
     glEnable(GL_TEXTURE_2D)
     glBindTexture(GL_TEXTURE_2D, tex_id)
     glEnable(GL_BLEND)
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE) # Use additive blending for glows
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE) 
     glDepthMask(GL_FALSE)
 
     r, g, b = color
@@ -481,7 +476,7 @@ def draw_billboard(cx, cy, cz, scale, tex_id, color=(1.0, 1.0, 1.0), alpha=1.0):
     glDisable(GL_BLEND)
     glBindTexture(GL_TEXTURE_2D, 0)
     glDisable(GL_TEXTURE_2D)
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) # Reset blend func
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
 def draw_text_2d(x, y, text, font=GLUT_BITMAP_HELVETICA_18, color=(1,1,1)):
     glMatrixMode(GL_PROJECTION)
@@ -663,12 +658,11 @@ class SolarSystemApp:
         for name, data in SOLAR_SYSTEM_DATA.items(): 
             self.textures[name] = load_texture(data[1])
         
-        # NEW: Load all moon textures from the new structure
         print("--- Loading Moon Textures ---")
         for planet_moons in MOON_DATA.values():
             for moon_data in planet_moons:
                 tex_name = moon_data[1]
-                if tex_name not in self.textures: # Only load if not already loaded
+                if tex_name not in self.textures:
                     self.textures[tex_name] = load_texture(tex_name)
         print("-----------------------------")
 
@@ -684,7 +678,6 @@ class SolarSystemApp:
         print("[INFO] Generating procedural nebula texture...")
         self.nebula_tex = self.create_procedural_nebula_texture()
         
-        # NEW: Add atmosphere texture
         print("[INFO] Generating procedural atmosphere texture...")
         self.atmosphere_tex = self.create_procedural_atmosphere_texture()
         
@@ -749,7 +742,6 @@ class SolarSystemApp:
         glBindTexture(GL_TEXTURE_2D, 0)
         return tex_id
         
-    # NEW: Function to create the OpenGL texture for the atmosphere
     def create_procedural_atmosphere_texture(self):
         texture_data = generate_atmosphere_texture(256, color=(120, 180, 255))
         tex_id = int(glGenTextures(1))
@@ -913,7 +905,7 @@ class SolarSystemApp:
         glDepthMask(GL_TRUE)
         glDisable(GL_BLEND)
         glEnable(GL_LIGHTING)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) # Reset blend func
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) 
 
     def render_minimap_scene(self, t, viewport_rect):
         vx, vy, vw, vh = viewport_rect
@@ -969,12 +961,10 @@ class SolarSystemApp:
         card_y = 50
         bg_alpha = 0.92 * progress
 
-        # Use gradient for a nicer aesthetic
-        color_top = (0.1, 0.1, 0.3) # Dark blue
-        color_bottom = (0.05, 0.05, 0.15) # Darker blue/purple
+        color_top = (0.1, 0.1, 0.3) 
+        color_bottom = (0.05, 0.05, 0.15) 
         draw_gradient_rect_2d(card_x, card_y, card_width, card_height, color_top, color_bottom, bg_alpha)
         
-        # Border
         draw_rounded_rect_2d(card_x - 2, card_y - 2, card_width + 4, card_height + 4, (0.3, 0.5, 0.8), 0.3 * progress)
         
         current_y = self.height - card_y - 40
@@ -1128,20 +1118,18 @@ class SolarSystemApp:
                 planet_scale = 1.0 + self.info_card_progress * 3.0
             draw_textured_sphere(radius * planet_scale, self.textures.get(name), color, alpha=transition_progress)
 
-            # --- NEW: Draw Atmospheric Glow ---
             if (name == "Earth" or name == "Venus") and self.atmosphere_tex > 0:
                 glDisable(GL_LIGHTING)
                 glEnable(GL_BLEND)
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE) # Additive blend
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE) 
                 glDepthMask(GL_FALSE)
                 glow_color = (0.5, 0.7, 1.0) if name == "Earth" else (0.9, 0.8, 0.6)
                 draw_billboard(0, 0, 0, (radius * 1.3) * planet_scale, self.atmosphere_tex, color=glow_color, alpha=0.6 * transition_progress)
                 glDepthMask(GL_TRUE)
                 glDisable(GL_BLEND)
                 glEnable(GL_LIGHTING)
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) # Reset blend func
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA) 
 
-            # --- UPDATED: Draw all moons for the current planet ---
             if name in MOON_DATA:
                 for m_data in MOON_DATA[name]:
                     m_rad, m_tex_name, m_dist, m_speed, m_spin = m_data
@@ -1153,21 +1141,19 @@ class SolarSystemApp:
                     draw_textured_sphere(m_rad, self.textures.get(m_tex_name), (1,1,1), alpha=transition_progress)
                     glPopMatrix()
 
-            # --- Satellites are separate and only orbit Earth ---
+            
             if name == "Earth":
-                # Draw Satellites orbiting Earth
                 for sat in self.satellites:
                     sat_angle = t * sat['speed'] + sat['angle']
                     dist = sat['distance'] / planet_scale
                     sx = dist * math.sin(sat_angle)
                     sz = dist * math.cos(sat_angle)
-                    sy = sx * math.sin(math.radians(sat['inclination'])) # cheap inclination
+                    sy = sx * math.sin(math.radians(sat['inclination'])) 
                     glPushMatrix()
                     glTranslatef(sx, sy, sz)
                     draw_textured_sphere(0.15, 0, color=(0.8, 0.8, 0.9), slices=8, stacks=8)
                     glPopMatrix()
             
-            # --- Saturn's Rings ---
             elif name == "Saturn":
                 if self.ring_tex > 0:
                     glEnable(GL_TEXTURE_2D)
@@ -1192,7 +1178,6 @@ class SolarSystemApp:
                 label_alpha = transition_progress * (1.0 - self.info_card_progress * 2)
                 draw_label(x, y + radius + 3, z, name.upper(), alpha=label_alpha)
         
-        # Draw Asteroid Belt
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         asteroid_alpha = transition_progress * (1.0 - self.info_card_progress)
@@ -1208,7 +1193,6 @@ class SolarSystemApp:
                 
                 glPushMatrix()
                 glTranslatef(x, y, z)
-                # Add a simple tumbling rotation
                 glRotatef(t * 100 * asteroid['rotation_speed'], 0.5, 1, 0)
                 draw_textured_sphere(asteroid['size'], 0, color=asteroid_color, alpha=asteroid_alpha, slices=8, stacks=8)
                 glPopMatrix()
